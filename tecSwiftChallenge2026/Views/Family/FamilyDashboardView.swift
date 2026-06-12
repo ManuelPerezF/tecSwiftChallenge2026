@@ -98,7 +98,7 @@ struct FamilyDashboardView: View {
             Text("Publica tu primera solicitud\npara conectar con un becario.")
                 .font(.body).foregroundStyle(Color.acoInk3)
                 .multilineTextAlignment(.center)
-            CTAButton(label: "Publicar solicitud", leadingEmoji: "➕", tint: .acoFamily) {
+            CTAButton(label: "Publicar solicitud", leadingSymbol: "plus", tint: .acoFamily) {
                 onAddTapped()
             }
             .padding(.horizontal, 40)
@@ -135,8 +135,10 @@ private struct LiveRequestCard: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color.acoFamilySoft).frame(width: 48, height: 48)
-                        Text(request.activityTypeEnum.emoji)
-                            .font(.system(size: 24)).accessibilityHidden(true)
+                        Image(systemName: request.activityTypeEnum.symbolName)
+                            .font(.system(size: 22))
+                            .foregroundStyle(Color.acoFamily)
+                            .accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 7) {

@@ -59,12 +59,12 @@ struct StudentHoursView: View {
 
                     // Stats inline — sin mini-cards
                     HStack(spacing: 0) {
-                        inlineStat(emoji: "🔥", value: "5 sem", label: "seguidas")
+                        inlineStat(symbol: "flame.fill", value: "5 sem", label: "seguidas")
                         Rectangle()
                             .fill(Color.acoHair)
                             .frame(width: 1, height: 32)
                             .padding(.horizontal, 20)
-                        inlineStat(emoji: "🤝", value: "8", label: "familias este sem.")
+                        inlineStat(symbol: "person.2.fill", value: "8", label: "familias este sem.")
                     }
                     .padding(.top, 20)
                     .padding(.bottom, 6)
@@ -77,8 +77,9 @@ struct StudentHoursView: View {
                             let maxH = breakdown.map(\.hours).max() ?? 1
                             ForEach(Array(breakdown.enumerated()), id: \.element.type) { index, item in
                                 HStack(alignment: .center, spacing: 11) {
-                                    Text(item.type.emoji)
+                                    Image(systemName: item.type.symbolName)
                                         .font(.body)
+                                        .foregroundStyle(Color.acoStudent)
                                         .frame(width: 24)
                                         .accessibilityHidden(true)
                                     VStack(alignment: .leading, spacing: 5) {
@@ -138,7 +139,10 @@ struct StudentHoursView: View {
                                         Circle()
                                             .strokeBorder(Color.acoStudent, lineWidth: 2)
                                             .frame(width: 44, height: 44)
-                                        Text("🎖️").font(.title3).accessibilityHidden(true)
+                                        Image(systemName: "medal.fill")
+                                            .font(.title3)
+                                            .foregroundStyle(Color.acoStudent)
+                                            .accessibilityHidden(true)
                                     }
                                 }
                                 Divider()
@@ -163,15 +167,16 @@ struct StudentHoursView: View {
                             )
 
                             VStack(spacing: 10) {
-                                Button("⬇ Descargar para mi escuela") {}
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 13)
-                                    .background(Color.acoStudent)
-                                    .clipShape(.rect(cornerRadius: 13))
-                                    .accessibilityLabel("Descargar constancia para mi escuela")
+                                Button {} label: {
+                                    Label("Descargar para mi escuela", systemImage: "arrow.down.circle.fill")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 13)
+                                        .background(Color.acoStudent)
+                                        .clipShape(.rect(cornerRadius: 13))
+                                }
 
                                 Label("Todas las horas verificadas por GPS — sin firmas", systemImage: "antenna.radiowaves.left.and.right")
                                     .font(.caption2)
@@ -190,9 +195,12 @@ struct StudentHoursView: View {
         .navigationBarTitleDisplayMode(.large)
     }
 
-    private func inlineStat(emoji: String, value: String, label: String) -> some View {
+    private func inlineStat(symbol: String, value: String, label: String) -> some View {
         HStack(spacing: 10) {
-            Text(emoji).font(.title3).accessibilityHidden(true)
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(Color.acoStudent)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(value)
                     .font(.headline)

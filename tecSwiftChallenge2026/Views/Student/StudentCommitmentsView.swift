@@ -1,6 +1,6 @@
 import SwiftUI
 
-private let visitSteps = ["En camino", "Llegué", "En curso", "Terminé"]
+private let visitSteps = ["En camino", "Iniciar", "Confirmar", "Terminé"]
 
 struct StudentCommitmentsView: View {
     @State private var assignments: [APIAssignment] = []
@@ -127,6 +127,9 @@ struct StudentCommitmentsView: View {
                 )
             case .enCamino:
                 updated = try await APIClient.shared.markIniciada(assignmentId: assignment.id)
+            case .esperandoConfirmacion:
+                busyAssignmentId = nil
+                return
             case .iniciada:
                 updated = try await APIClient.shared.markCompletada(assignmentId: assignment.id)
             default:
@@ -154,13 +157,16 @@ private struct AssignmentCard: View {
 
     private var currentStep: Int {
         switch assignment.statusEnum {
-        case .approved:   0
-        case .enCamino:   1
-        case .iniciada:   2
-        case .completada: 4
-        case .cancelada:  0
+        case .approved:              0
+        case .enCamino:              1
+        case .esperandoConfirmacion: 2
+        case .iniciada:              3
+        case .completada:            4
+        case .cancelada:             0
         }
     }
+
+    private var isWaitingConfirm: Bool { assignment.statusEnum == .esperandoConfirmacion }
 
     private var isDone: Bool { assignment.statusEnum == .completada }
     private var isCancelled: Bool { assignment.statusEnum == .cancelada }
@@ -174,8 +180,9 @@ private struct AssignmentCard: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(Color.acoStudentSoft)
                                 .frame(width: 46, height: 46)
-                            Text(assignment.activityTypeEnum.emoji)
-                                .font(.system(size: 24))
+                            Image(systemName: assignment.activityTypeEnum.symbolName)
+                                .font(.system(size: 22))
+                                .foregroundStyle(Color.acoStudent)
                                 .accessibilityHidden(true)
                         }
                         VStack(alignment: .leading, spacing: 2) {
@@ -193,7 +200,10 @@ private struct AssignmentCard: View {
                     }
 
                     HStack(spacing: 8) {
-                        Text("📍").font(.subheadline).accessibilityHidden(true)
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.acoStudent)
+                            .accessibilityHidden(true)
                         Text("\(assignment.address) · \(assignment.neighborhood)")
                             .font(.subheadline)
                             .fontWeight(.semibold)
@@ -230,6 +240,13 @@ private struct AssignmentCard: View {
                 .fontWeight(.bold)
                 .foregroundStyle(Color.acoDone)
                 .frame(maxWidth: .infinity, alignment: .center)
+        } else if isWaitingConfirm {
+            Label("Esperando que \(assignment.elderlyName) confirme el inicio", systemImage: "clock.fill")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color(acoHex: "D98E04"))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 4)
         } else {
             VStack(spacing: 8) {
                 Button(action: onAdvance) {
@@ -271,7 +288,7 @@ private struct AssignmentCard: View {
     private var stepActionLabel: String {
         switch assignment.statusEnum {
         case .approved: "Voy en camino"
-        case .enCamino: "Llegué · iniciar visita"
+        case .enCamino: "Llegué · solicitar inicio"
         case .iniciada: "Ya terminé"
         default: "Avanzar"
         }
@@ -297,7 +314,10 @@ private struct PendingApplicationRow: View {
             HStack(spacing: 12) {
                 ZStack {
                     Circle().fill(Color(acoHex: "FFF4E0")).frame(width: 38, height: 38)
-                    Text("⏳").font(.body).accessibilityHidden(true)
+                    Image(systemName: "clock.fill")
+                        .font(.body)
+                        .foregroundStyle(Color(acoHex: "D98E04"))
+                        .accessibilityHidden(true)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Esperando aprobación")

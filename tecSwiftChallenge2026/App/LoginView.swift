@@ -7,6 +7,12 @@ struct LoginView: View {
     @AppStorage("aco_familyCode") private var savedFamilyCode: String = ""
     @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var brandNamespace
+
+    @State private var showSplash = true
+    @State private var formVisible = false
+
     @State private var isRegistering = false
 
     // Campos comunes
@@ -37,46 +43,37 @@ struct LoginView: View {
         return base && hasName && studentOk
     }
 
+    private var brandGradient: LinearGradient {
+        LinearGradient(
+            colors: [Color(acoHex: "0C564E"), Color.acoFamily, Color(acoHex: "1D9E75")],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     var body: some View {
         ZStack {
             Color.acoBg.ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    brandHeader
-
-                    modeToggle
-
-                    if isRegistering {
-                        rolePicker
-                        labeledField("NOMBRE", placeholder: "Tu nombre completo", text: $name, field: .name)
-                    }
-
-                    labeledField("CORREO", placeholder: "tu@correo.com", text: $email, field: .email, keyboard: .emailAddress)
-                    passwordField
-
-                    if isRegistering {
-                        roleSpecificFields
-                    }
-
-                    if let errorMessage {
-                        errorBanner(errorMessage)
-                    }
-
-                    submitButton
-
-                    if !isRegistering {
-                        demoHint
-                    }
-
-                    Spacer().frame(height: 48)
-                }
-                .padding(.horizontal, 24)
+            if showSplash {
+                splash
+            } else {
+                loginScreen
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
         }
         .task {
+            if reduceMotion {
+                showSplash = false
+                formVisible = true
+            } else {
+                try? await Task.sleep(for: .seconds(1.1))
+                withAnimation(.spring(response: 0.65, dampingFraction: 0.85)) {
+                    showSplash = false
+                }
+                withAnimation(.easeOut(duration: 0.4).delay(0.25)) {
+                    formVisible = true
+                }
+            }
             if universities.isEmpty {
                 universities = (try? await APIClient.shared.fetchUniversities()) ?? []
                 if selectedUniversityId == nil { selectedUniversityId = universities.first?.id }
@@ -84,33 +81,118 @@ struct LoginView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Splash
 
-    private var brandHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.acoFamily)
-                    .frame(width: 64, height: 64)
-                    .shadow(color: Color.acoFamily.opacity(0.35), radius: 12, x: 0, y: 6)
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 28, weight: .semibold))
+    private var splash: some View {
+        ZStack {
+            brandGradient.ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                logoMark(size: 92, iconSize: 42)
+                    .matchedGeometryEffect(id: "logo", in: brandNamespace)
+
+                Text("Kuidar")
+                    .font(.system(size: 46, weight: .black))
+                    .tracking(-1.5)
                     .foregroundStyle(.white)
+                    .matchedGeometryEffect(id: "wordmark", in: brandNamespace)
+
+                Text("Cuidar es estar cerca")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.85))
+                    .transition(.opacity)
             }
-            .padding(.top, 64)
-            .padding(.bottom, 22)
-
-            Text("Kuidar")
-                .font(.system(size: 44, weight: .black))
-                .foregroundStyle(Color.acoInk)
-                .tracking(-1.5)
-
-            Text(isRegistering ? "Crea tu cuenta para empezar." : "Inicia sesión para continuar.")
-                .font(.body)
-                .foregroundStyle(Color.acoInk3)
-                .padding(.top, 6)
         }
-        .padding(.bottom, 28)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Kuidar. Cuidar es estar cerca")
+    }
+
+    private func logoMark(size: CGFloat, iconSize: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.3)
+                .fill(.white.opacity(0.16))
+            RoundedRectangle(cornerRadius: size * 0.3)
+                .strokeBorder(.white.opacity(0.35), lineWidth: 1)
+            Image(systemName: "heart.fill")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    // MARK: - Login
+
+    private var loginScreen: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                header
+
+                formCard
+                    .opacity(formVisible ? 1 : 0)
+                    .offset(y: formVisible ? 0 : 24)
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .ignoresSafeArea(edges: .top)
+        .background(Color.acoBg)
+    }
+
+    private var header: some View {
+        ZStack(alignment: .bottomLeading) {
+            brandGradient
+
+            VStack(alignment: .leading, spacing: 12) {
+                logoMark(size: 56, iconSize: 26)
+                    .matchedGeometryEffect(id: "logo", in: brandNamespace)
+
+                Text("Kuidar")
+                    .font(.system(size: 38, weight: .black))
+                    .tracking(-1.2)
+                    .foregroundStyle(.white)
+                    .matchedGeometryEffect(id: "wordmark", in: brandNamespace)
+
+                Text(isRegistering
+                     ? "Crea tu cuenta para empezar."
+                     : "Qué bueno verte de nuevo.")
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 72)
+            .padding(.bottom, 44)
+        }
+        .clipShape(UnevenRoundedRectangle(
+            bottomLeadingRadius: 32, bottomTrailingRadius: 32
+        ))
+    }
+
+    private var formCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            modeToggle
+
+            if isRegistering {
+                rolePicker
+                labeledField("NOMBRE", placeholder: "Tu nombre completo", text: $name, field: .name)
+            }
+
+            labeledField("CORREO", placeholder: "tu@correo.com", text: $email, field: .email, keyboard: .emailAddress)
+            passwordField
+
+            if isRegistering {
+                roleSpecificFields
+            }
+
+            if let errorMessage {
+                errorBanner(errorMessage)
+            }
+
+            submitButton
+
+            Spacer().frame(height: 48)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 28)
     }
 
     private var modeToggle: some View {
@@ -157,8 +239,11 @@ struct LoginView: View {
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) { selectedRole = role }
                     } label: {
-                        VStack(spacing: 5) {
-                            Text(role.emoji).font(.system(size: 24)).accessibilityHidden(true)
+                        VStack(spacing: 6) {
+                            Image(systemName: role.symbolName)
+                                .font(.system(size: 22))
+                                .foregroundStyle(selectedRole == role ? role.tint : Color.acoInk3)
+                                .accessibilityHidden(true)
                             Text(role.title)
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(selectedRole == role ? role.tint : Color.acoInk2)
@@ -266,7 +351,7 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(
                             focusedField == field
-                                ? Color.acoInk.opacity(0.35)
+                                ? Color.acoFamily.opacity(0.6)
                                 : Color(acoHex: "3C3228").opacity(0.10),
                             lineWidth: 1.5
                         )
@@ -294,7 +379,7 @@ struct LoginView: View {
                     RoundedRectangle(cornerRadius: 14)
                         .strokeBorder(
                             focusedField == .password
-                                ? Color.acoInk.opacity(0.35)
+                                ? Color.acoFamily.opacity(0.6)
                                 : Color(acoHex: "3C3228").opacity(0.10),
                             lineWidth: 1.5
                         )
@@ -333,27 +418,23 @@ struct LoginView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 17)
-            .background(canSubmit ? (isRegistering ? selectedRole.tint : Color.acoFamily) : Color.acoInk.opacity(0.18))
+            .background {
+                if canSubmit {
+                    if isRegistering {
+                        selectedRole.tint
+                    } else {
+                        brandGradient
+                    }
+                } else {
+                    Color.acoInk.opacity(0.18)
+                }
+            }
             .clipShape(.rect(cornerRadius: 16))
+            .shadow(color: canSubmit ? Color.acoFamily.opacity(0.3) : .clear, radius: 10, y: 5)
         }
         .disabled(!canSubmit)
         .animation(.easeOut(duration: 0.2), value: canSubmit)
         .padding(.bottom, 24)
-    }
-
-    private var demoHint: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("CUENTAS DEMO")
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.8)
-                .foregroundStyle(Color.acoInk3)
-            Text("familia@kuidar.app · becario@kuidar.app · adulto@kuidar.app")
-                .font(.caption)
-                .foregroundStyle(Color.acoInk2)
-            Text("Contraseña: demo123")
-                .font(.caption)
-                .foregroundStyle(Color.acoInk3)
-        }
     }
 
     private func submit() {
@@ -389,10 +470,13 @@ struct LoginView: View {
                 savedToken = response.token
                 savedName = response.user.name
                 savedRoleRaw = role.rawValue
+                KuidarHaptic.success()
             } catch let error as APIError {
                 errorMessage = error.errorDescription
+                KuidarHaptic.error()
             } catch {
                 errorMessage = APIError.serverUnreachable.errorDescription
+                KuidarHaptic.error()
             }
             isLoading = false
         }

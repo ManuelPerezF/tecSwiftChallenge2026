@@ -161,6 +161,10 @@ final class APIClient {
         try await post(path: "assignments/\(assignmentId)/iniciar", body: [:])
     }
 
+    func confirmarInicio(assignmentId: String) async throws -> APIAssignment {
+        try await post(path: "assignments/\(assignmentId)/confirmar-inicio", body: [:])
+    }
+
     func markCompletada(assignmentId: String) async throws -> APIAssignment {
         try await post(path: "assignments/\(assignmentId)/completar", body: [:])
     }

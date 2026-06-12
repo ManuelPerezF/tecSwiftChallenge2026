@@ -43,8 +43,10 @@ struct FamilyPublishView: View {
             Spacer()
             ZStack {
                 Circle().fill(Color.acoFamilySoft).frame(width: 96, height: 96)
-                Text(selectedActivity.emoji)
-                    .font(.system(size: 44)).accessibilityHidden(true)
+                Image(systemName: selectedActivity.symbolName)
+                    .font(.system(size: 40))
+                    .foregroundStyle(Color.acoFamily)
+                    .accessibilityHidden(true)
             }
             Text("¡Solicitud publicada!")
                 .font(.title2).bold().foregroundStyle(Color.acoInk)
@@ -97,7 +99,10 @@ struct FamilyPublishView: View {
                                 withAnimation(.easeInOut(duration: 0.15)) { selectedElderlyId = elderly.id }
                             } label: {
                                 VStack(spacing: 4) {
-                                    Text("🧓").font(.title3).accessibilityHidden(true)
+                                    Image(systemName: "figure.stand")
+                                        .font(.title3)
+                                        .foregroundStyle(selectedElderlyId == elderly.id ? Color.acoFamily : Color.acoElderly)
+                                        .accessibilityHidden(true)
                                     Text(elderly.firstName)
                                         .font(.caption).fontWeight(.semibold)
                                         .foregroundStyle(selectedElderlyId == elderly.id ? Color.acoFamily : Color.acoInk2)
@@ -185,7 +190,7 @@ struct FamilyPublishView: View {
                 // CTA
                 CTAButton(
                     label: isLoading ? "Publicando…" : "Publicar solicitud",
-                    leadingEmoji: selectedActivity.emoji,
+                    leadingSymbol: selectedActivity.symbolName,
                     tint: .acoFamily,
                     disabled: isLoading
                 ) { Task { await publishRequest() } }
@@ -252,7 +257,10 @@ private struct ActivityPickerCell: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Text(activity.emoji).font(.system(size: 26)).accessibilityHidden(true)
+                Image(systemName: activity.symbolName)
+                    .font(.system(size: 24))
+                    .foregroundStyle(isSelected ? tint : Color.acoInk2)
+                    .accessibilityHidden(true)
                 Text(activity.label)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(isSelected ? tint : Color.acoInk2)

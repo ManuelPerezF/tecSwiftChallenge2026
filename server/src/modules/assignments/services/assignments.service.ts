@@ -15,9 +15,10 @@ interface AssignmentRow {
   id: string;
   request_id: string;
   student_id: string;
-  status: AssignmentStatus;
+  status: "approved" | "en_camino" | "iniciada" | "completada" | "cancelada";
   approved_at: string;
   en_camino_at: string | null;
+  inicio_solicitado_at: string | null;
   checkin_at: string | null;
   checkout_at: string | null;
   hours_logged: number;
@@ -29,6 +30,7 @@ interface AssignmentRow {
   latitude: number;
   longitude: number;
   elderly_name: string | null;
+  elderly_profile_id: string | null;
   neighborhood: string | null;
   address: string | null;
   family_id: string;
@@ -37,7 +39,7 @@ interface AssignmentRow {
 const SELECT_FULL = `
   SELECT a.*, u.name AS student_name,
          r.activity_type, r.details, r.scheduled_date, r.is_urgent,
-         r.latitude, r.longitude, r.family_id,
+         r.latitude, r.longitude, r.family_id, r.elderly_profile_id,
          e.first_name AS elderly_name, e.neighborhood, e.address
   FROM   assignments a
   JOIN   activity_requests r ON a.request_id = r.id
@@ -46,15 +48,23 @@ const SELECT_FULL = `
   LEFT JOIN elderly_profiles e ON r.elderly_profile_id = e.id
 `;
 
+function resolveStatus(row: AssignmentRow): AssignmentStatus {
+  if (row.status === "en_camino" && row.inicio_solicitado_at && !row.checkin_at) {
+    return "esperando_confirmacion";
+  }
+  return row.status;
+}
+
 function toView(row: AssignmentRow): AssignmentView {
   return {
     id: row.id,
     requestId: row.request_id,
     studentId: row.student_id,
     studentName: row.student_name,
-    status: row.status,
+    status: resolveStatus(row),
     approvedAt: row.approved_at,
     enCaminoAt: row.en_camino_at,
+    inicioSolicitadoAt: row.inicio_solicitado_at,
     checkinAt: row.checkin_at,
     checkoutAt: row.checkout_at,
     hoursLogged: row.hours_logged,
@@ -80,13 +90,20 @@ function getRow(id: string): AssignmentRow {
 function assertTransition(current: AssignmentStatus, target: AssignmentStatus): void {
   const allowed: Record<AssignmentStatus, AssignmentStatus[]> = {
     approved: ["en_camino", "cancelada"],
-    en_camino: ["iniciada", "cancelada"],
+    en_camino: ["esperando_confirmacion", "iniciada", "cancelada"],
+    esperando_confirmacion: ["iniciada", "cancelada"],
     iniciada: ["completada", "cancelada"],
     completada: [],
     cancelada: [],
   };
   if (!allowed[current].includes(target)) {
     throw new AppError(`No se puede pasar de ${current} a ${target}`, 409, "INVALID_TRANSITION");
+  }
+}
+
+function assertElderlyOwnsVisit(auth: AuthContext, row: AssignmentRow): void {
+  if (row.elderly_profile_id !== auth.elderlyProfileId) {
+    throw new UnauthorizedError("No es una visita tuya");
   }
 }
 
@@ -122,7 +139,7 @@ export const assignmentsService = {
   enCamino(auth: AuthContext, id: string): AssignmentView {
     const row = getRow(id);
     if (row.student_id !== auth.studentId) throw new UnauthorizedError("No es tu visita");
-    assertTransition(row.status, "en_camino");
+    assertTransition(resolveStatus(row), "en_camino");
 
     db.prepare("UPDATE assignments SET status = 'en_camino', en_camino_at = datetime('now') WHERE id = ?").run(id);
     db.prepare("UPDATE activity_requests SET status = 'inProgress' WHERE id = ?").run(row.request_id);
@@ -131,10 +148,36 @@ export const assignmentsService = {
     return toView(getRow(id));
   },
 
+  /** Becario llegó: solicita inicio. Horas NO cuentan hasta que el adulto mayor confirme. */
   iniciar(auth: AuthContext, id: string): AssignmentView {
     const row = getRow(id);
     if (row.student_id !== auth.studentId) throw new UnauthorizedError("No es tu visita");
-    assertTransition(row.status, "iniciada");
+
+    const current = resolveStatus(row);
+    if (current !== "en_camino") {
+      throw new AppError("Solo puedes iniciar cuando estás en camino", 409, "INVALID_STATE");
+    }
+    if (row.inicio_solicitado_at) {
+      throw new AppError("Ya solicitaste inicio", 409, "ALREADY_REQUESTED");
+    }
+
+    db.prepare("UPDATE assignments SET inicio_solicitado_at = datetime('now') WHERE id = ?").run(id);
+
+    broadcastAssignmentStatus(id);
+    return toView(getRow(id));
+  },
+
+  /** Adulto mayor confirma inicio → arranca cronómetro (checkin_at). */
+  confirmarInicio(auth: AuthContext, id: string): AssignmentView {
+    const row = getRow(id);
+    assertElderlyOwnsVisit(auth, row);
+
+    const current = resolveStatus(row);
+    if (current !== "esperando_confirmacion") {
+      throw new AppError("No hay inicio pendiente de confirmar", 409, "NO_PENDING_START");
+    }
+
+    assertTransition(current, "iniciada");
 
     db.prepare("UPDATE assignments SET status = 'iniciada', checkin_at = datetime('now') WHERE id = ?").run(id);
 
@@ -145,12 +188,15 @@ export const assignmentsService = {
   completar(auth: AuthContext, id: string): AssignmentView {
     const row = getRow(id);
     if (row.student_id !== auth.studentId) throw new UnauthorizedError("No es tu visita");
-    assertTransition(row.status, "completada");
+    assertTransition(resolveStatus(row), "completada");
+
+    if (!row.checkin_at) {
+      throw new AppError("La visita no fue confirmada por el adulto mayor", 409, "NOT_CONFIRMED");
+    }
 
     const tx = db.transaction(() => {
       db.prepare("UPDATE assignments SET status = 'completada', checkout_at = datetime('now') WHERE id = ?").run(id);
 
-      // Horas: checkout - checkin (mínimo 0.25 h para demo)
       const t = db.prepare("SELECT checkin_at, checkout_at FROM assignments WHERE id = ?")
         .get(id) as { checkin_at: string; checkout_at: string };
       const ms = new Date(t.checkout_at + "Z").getTime() - new Date(t.checkin_at + "Z").getTime();
@@ -174,7 +220,7 @@ export const assignmentsService = {
   cancelar(auth: AuthContext, id: string): AssignmentView {
     const row = getRow(id);
     if (row.family_id !== auth.familyId) throw new UnauthorizedError("No es una visita de tu familia");
-    assertTransition(row.status, "cancelada");
+    assertTransition(resolveStatus(row), "cancelada");
 
     db.prepare("UPDATE assignments SET status = 'cancelada' WHERE id = ?").run(id);
     db.prepare("UPDATE activity_requests SET status = 'cancelled' WHERE id = ?").run(row.request_id);
@@ -183,8 +229,6 @@ export const assignmentsService = {
     return toView(getRow(id));
   },
 
-  // ── Ubicación (REST fallback) ───────────────────────────────────
-
   postLocation(auth: AuthContext, id: string, data: LocationBody): { ok: true } {
     const row = getRow(id);
     const role = auth.role === "student" ? "student" : "elderly";
@@ -192,10 +236,11 @@ export const assignmentsService = {
     if (role === "student" && row.student_id !== auth.studentId) {
       throw new UnauthorizedError("No es tu visita");
     }
-    if (role === "elderly" && auth.familyId !== row.family_id) {
-      throw new UnauthorizedError("No es una visita de tu familia");
+    if (role === "elderly") {
+      assertElderlyOwnsVisit(auth, row);
     }
-    if (row.status !== "en_camino" && row.status !== "iniciada") {
+    const current = resolveStatus(row);
+    if (current !== "en_camino" && current !== "esperando_confirmacion" && current !== "iniciada") {
       throw new AppError("La visita no está activa", 409, "NOT_ACTIVE");
     }
 
@@ -214,7 +259,8 @@ export const assignmentsService = {
     const row = getRow(id);
     const isFamily = auth.familyId === row.family_id;
     const isStudent = auth.studentId === row.student_id;
-    if (!isFamily && !isStudent) throw new UnauthorizedError("Sin acceso a esta visita");
+    const isElderly = auth.elderlyProfileId === row.elderly_profile_id;
+    if (!isFamily && !isStudent && !isElderly) throw new UnauthorizedError("Sin acceso a esta visita");
 
     const rows = db
       .prepare("SELECT role, latitude, longitude, recorded_at FROM location_updates WHERE assignment_id = ?")

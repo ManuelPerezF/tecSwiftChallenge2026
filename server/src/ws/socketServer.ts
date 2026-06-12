@@ -90,24 +90,32 @@ export function broadcastLocation(assignmentId: string): void {
 /** Notifica cambio de estado de un assignment a todos los involucrados/suscritos. */
 export function broadcastAssignmentStatus(assignmentId: string): void {
   const row = db.prepare(`
-    SELECT a.id, a.status, a.approved_at, a.en_camino_at, a.checkin_at, a.checkout_at, a.hours_logged,
+    SELECT a.id, a.status, a.approved_at, a.en_camino_at, a.inicio_solicitado_at,
+           a.checkin_at, a.checkout_at, a.hours_logged,
            r.family_id, a.student_id
     FROM assignments a JOIN activity_requests r ON a.request_id = r.id
     WHERE a.id = ?
   `).get(assignmentId) as {
     id: string; status: string; approved_at: string; en_camino_at: string | null;
+    inicio_solicitado_at: string | null;
     checkin_at: string | null; checkout_at: string | null; hours_logged: number;
     family_id: string; student_id: string;
   } | undefined;
   if (!row) return;
 
+  const status =
+    row.status === "en_camino" && row.inicio_solicitado_at && !row.checkin_at
+      ? "esperando_confirmacion"
+      : row.status;
+
   const payload = {
     type: "assignment:status",
     assignmentId: row.id,
-    status: row.status,
+    status,
     timestamps: {
       approvedAt: row.approved_at,
       enCaminoAt: row.en_camino_at,
+      inicioSolicitadoAt: row.inicio_solicitado_at,
       checkinAt: row.checkin_at,
       checkoutAt: row.checkout_at,
     },

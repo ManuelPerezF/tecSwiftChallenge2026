@@ -1,8 +1,8 @@
 import { requestsService } from "../services/requests.service.js";
 export const requestsController = {
-    list(_req, res, next) {
+    listMine(req, res, next) {
         try {
-            res.json(requestsService.findAll());
+            res.json(requestsService.findMine(req.auth));
         }
         catch (error) {
             next(error);
@@ -26,17 +26,8 @@ export const requestsController = {
     },
     create(req, res, next) {
         try {
-            const result = requestsService.create(req.body);
+            const result = requestsService.create(req.auth, req.body);
             res.status(201).json(result);
-        }
-        catch (error) {
-            next(error);
-        }
-    },
-    updateStatus(req, res, next) {
-        try {
-            const result = requestsService.updateStatus(req.params.id, req.body);
-            res.json(result);
         }
         catch (error) {
             next(error);
@@ -44,8 +35,7 @@ export const requestsController = {
     },
     remove(req, res, next) {
         try {
-            const result = requestsService.remove(req.params.id);
-            res.json(result);
+            res.json(requestsService.remove(req.auth, req.params.id));
         }
         catch (error) {
             next(error);

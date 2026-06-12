@@ -156,7 +156,7 @@ struct StudentMapView: View {
                     }
                     ForEach(ActivityType.allCases, id: \.self) { act in
                         ChipButton(
-                            label: "\(act.emoji) \(act.label.components(separatedBy: " ").first ?? act.label)",
+                            label: act.label.components(separatedBy: " ").first ?? act.label,
                             tint: .acoStudent, soft: Color.white.opacity(0.95),
                             isActive: filterActivity == act
                         ) {
@@ -242,8 +242,10 @@ private struct MapPinButton: View {
                     .fill(pinColor)
                     .frame(width: isSelected ? 46 : 38, height: isSelected ? 46 : 38)
                     .overlay { Circle().strokeBorder(Color.white, lineWidth: isSelected ? 3 : 2) }
-                Text(request.activityType.emoji)
-                    .font(.system(size: isSelected ? 22 : 17)).accessibilityHidden(true)
+                Image(systemName: request.activityType.symbolName)
+                    .font(.system(size: isSelected ? 20 : 16))
+                    .foregroundStyle(.white)
+                    .accessibilityHidden(true)
             }
             .shadow(color: isSelected ? pinColor.opacity(0.55) : .black.opacity(0.25),
                     radius: isSelected ? 12 : 5, y: 3)
@@ -321,14 +323,17 @@ private struct SelectedRequestCallout: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13)
                         .fill(Color.acoStudentSoft).frame(width: 46, height: 46)
-                    Text(request.activityType.emoji).font(.system(size: 24)).accessibilityHidden(true)
+                    Image(systemName: request.activityType.symbolName)
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.acoStudent)
+                        .accessibilityHidden(true)
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(request.title).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
                         if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                     }
-                    Text("📍 \(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel) · \(request.duration)")
+                    Text("\(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel) · \(request.duration)")
                         .font(.caption).foregroundStyle(Color.acoInk2)
                 }
                 Spacer()
@@ -350,7 +355,10 @@ private struct RankedRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(request.activityType.emoji).font(.system(size: 23)).accessibilityHidden(true)
+            Image(systemName: request.activityType.symbolName)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.acoStudent)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(request.title).font(.subheadline).fontWeight(.semibold)
                     .foregroundStyle(Color.acoInk).lineLimit(1)

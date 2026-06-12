@@ -132,6 +132,7 @@ db.exec(`
                    CHECK(status IN ('approved','en_camino','iniciada','completada','cancelada')),
     approved_at    TEXT NOT NULL DEFAULT (datetime('now')),
     en_camino_at   TEXT,
+    inicio_solicitado_at TEXT,
     checkin_at     TEXT,
     checkout_at    TEXT,
     hours_logged   REAL NOT NULL DEFAULT 0
@@ -189,6 +190,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_applications_request ON applications(request_id);
   CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id);
 `);
+
+// Migración incremental: columna inicio_solicitado_at en DBs existentes
+const assignmentCols = db.prepare("PRAGMA table_info(assignments)").all() as Array<{ name: string }>;
+if (!assignmentCols.some((c) => c.name === "inicio_solicitado_at")) {
+  db.exec("ALTER TABLE assignments ADD COLUMN inicio_solicitado_at TEXT");
+}
 
 // ── Seed ──────────────────────────────────────────────────────────
 

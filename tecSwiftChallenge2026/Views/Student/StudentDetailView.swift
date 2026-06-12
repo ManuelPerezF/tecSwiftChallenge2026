@@ -30,7 +30,10 @@ struct StudentDetailView: View {
                 Spacer().frame(height: 48)
                 ZStack {
                     Circle().fill(Color.acoStudentSoft).frame(width: 88, height: 88)
-                    Text("✅").font(.system(size: 40)).accessibilityHidden(true)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(Color.acoDone)
+                        .accessibilityHidden(true)
                 }
                 Text("¡Postulación enviada!")
                     .font(.title2).fontWeight(.bold).foregroundStyle(Color.acoInk)
@@ -52,8 +55,9 @@ struct StudentDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Hero — actividad + badges, sin card wrapper
                 VStack(spacing: 12) {
-                    Text(request.activityType.emoji)
+                    Image(systemName: request.activityType.symbolName)
                         .font(.system(size: 48))
+                        .foregroundStyle(Color.acoStudent)
                         .accessibilityHidden(true)
                     HStack(spacing: 7) {
                         BadgeLabel(text: request.activityType.label, color: .acoStudent)
@@ -81,7 +85,7 @@ struct StudentDetailView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(request.elderlyName)
                                 .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoInk)
-                            Text("📍 \(request.neighborhood)")
+                            Label(request.neighborhood, systemImage: "mappin.circle.fill")
                                 .font(.caption).foregroundStyle(Color.acoInk2)
                         }
                         Spacer()
@@ -97,15 +101,18 @@ struct StudentDetailView: View {
 
                 // Datos clave — 3 celdas inline sin card individual
                 HStack(spacing: 8) {
-                    factCell(emoji: "🕑", value: request.timeWindow.shortLabel, label: "horario")
-                    factCell(emoji: "⏱️", value: request.duration,             label: "duración")
-                    factCell(emoji: "⭐️", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
+                    factCell(symbol: "clock", value: request.timeWindow.shortLabel, label: "horario")
+                    factCell(symbol: "timer", value: request.duration, label: "duración")
+                    factCell(symbol: "star.fill", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
                 }
                 .padding(.bottom, 14)
 
                 // Sugerencia IA — integrada, sin card flotante
                 HStack(alignment: .top, spacing: 10) {
-                    Text("✨").font(.body).accessibilityHidden(true)
+                    Image(systemName: "sparkles")
+                        .font(.body)
+                        .foregroundStyle(Color(acoHex: "13684D"))
+                        .accessibilityHidden(true)
                     Text("**Mejor hora para ti:** según tu agenda, el **jueves por la mañana** te queda perfecto entre clases.")
                         .font(.subheadline)
                         .foregroundStyle(Color(acoHex: "13684D"))
@@ -170,10 +177,13 @@ struct StudentDetailView: View {
         .scrollIndicators(.hidden)
     }
 
-    private func factCell(emoji: String, value: String, label: String) -> some View {
+    private func factCell(symbol: String, value: String, label: String) -> some View {
         AcoCard(padding: 12) {
             VStack(spacing: 4) {
-                Text(emoji).font(.title3).accessibilityHidden(true)
+                Image(systemName: symbol)
+                    .font(.title3)
+                    .foregroundStyle(Color.acoStudent)
+                    .accessibilityHidden(true)
                 Text(value).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
                 Text(label).font(.caption2).foregroundStyle(Color.acoInk3)
             }

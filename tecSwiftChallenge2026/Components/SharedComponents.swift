@@ -143,7 +143,7 @@ struct AcoCard<Content: View>: View {
 // MARK: - CTAButton
 struct CTAButton: View {
     let label: String
-    var leadingEmoji: String? = nil
+    var leadingSymbol: String? = nil
     let tint: Color
     var big: Bool = false
     var disabled: Bool = false
@@ -152,7 +152,9 @@ struct CTAButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
-                if let e = leadingEmoji { Text(e).font(.system(size: big ? 20 : 17)) }
+                if let s = leadingSymbol {
+                    Image(systemName: s).font(.system(size: big ? 20 : 17))
+                }
                 Text(label)
                     .font(.system(size: big ? 20 : 17, weight: .semibold))
             }
@@ -190,7 +192,8 @@ struct UniversityBadge: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Text("🎓").font(.system(size: 11))
+            Image(systemName: "graduationcap.fill").font(.system(size: 11))
+                .foregroundStyle(color)
             Text(university)
                 .font(.caption)
                 .fontWeight(.semibold)

@@ -21,11 +21,4 @@ enum AppRole: String, Hashable, CaseIterable {
         }
     }
 
-    var emoji: String {
-        switch self {
-        case .family:  "👨‍👩‍👧"
-        case .student: "🎓"
-        case .elderly: "🧓"
-        }
-    }
 }

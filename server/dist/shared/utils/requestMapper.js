@@ -34,6 +34,8 @@ function activityHours(activityType) {
 export function normalizeRequest(row) {
     return {
         id: row.id,
+        familyId: row.family_id,
+        elderlyProfileId: row.elderly_profile_id ?? null,
         activityType: row.activity_type,
         details: row.details,
         scheduledDate: row.scheduled_date,

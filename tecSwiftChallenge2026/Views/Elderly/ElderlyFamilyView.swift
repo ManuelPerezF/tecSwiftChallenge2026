@@ -244,7 +244,7 @@ struct ElderlyJoinFamilyForm: View {
 #Preview("Sin vincular") {
     NavigationStack { ElderlyFamilyView() }
 }
-
 #Preview("Formulario") {
     NavigationStack { ElderlyJoinFamilyForm(onJoined: {}) }
 }
+

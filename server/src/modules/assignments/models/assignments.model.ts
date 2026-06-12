@@ -7,7 +7,13 @@ export const locationBodySchema = z.object({
 
 export type LocationBody = z.infer<typeof locationBodySchema>;
 
-export type AssignmentStatus = "approved" | "en_camino" | "iniciada" | "completada" | "cancelada";
+export type AssignmentStatus =
+  | "approved"
+  | "en_camino"
+  | "esperando_confirmacion"
+  | "iniciada"
+  | "completada"
+  | "cancelada";
 
 export interface AssignmentView {
   id: string;
@@ -17,6 +23,7 @@ export interface AssignmentView {
   status: AssignmentStatus;
   approvedAt: string;
   enCaminoAt: string | null;
+  inicioSolicitadoAt: string | null;
   checkinAt: string | null;
   checkoutAt: string | null;
   hoursLogged: number;

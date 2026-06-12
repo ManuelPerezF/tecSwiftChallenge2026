@@ -79,7 +79,7 @@ struct FamilyStudentProfileView: View {
 
                     // CTA
                     VStack(spacing: 10) {
-                        CTAButton(label: "Enviar mensaje", leadingEmoji: "💬", tint: .acoFamily) {}
+                        CTAButton(label: "Enviar mensaje", leadingSymbol: "bubble.left.fill", tint: .acoFamily) {}
                         HStack(spacing: 6) {
                             Image(systemName: "lock.fill")
                                 .font(.caption2)

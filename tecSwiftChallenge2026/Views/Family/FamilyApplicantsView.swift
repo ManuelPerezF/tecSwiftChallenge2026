@@ -63,7 +63,10 @@ struct FamilyApplicantsView: View {
 
     private var requestSummary: some View {
         HStack(spacing: 10) {
-            Text(request.activityTypeEnum.emoji).font(.title3).accessibilityHidden(true)
+            Image(systemName: request.activityTypeEnum.symbolName)
+                .font(.title3)
+                .foregroundStyle(Color.acoFamily)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(request.activityTypeEnum.label)
                     .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
@@ -81,7 +84,10 @@ struct FamilyApplicantsView: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle().fill(Color.acoFamilySoft).frame(width: 88, height: 88)
-                Text("📭").font(.system(size: 38)).accessibilityHidden(true)
+                Image(systemName: "tray.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.acoFamily)
+                    .accessibilityHidden(true)
             }
             Text("Aún no hay postulantes")
                 .font(.title3).bold().foregroundStyle(Color.acoInk)
@@ -96,7 +102,10 @@ struct FamilyApplicantsView: View {
         VStack(spacing: 16) {
             ZStack {
                 Circle().fill(Color.acoFamilySoft).frame(width: 96, height: 96)
-                Text("🤝").font(.system(size: 44)).accessibilityHidden(true)
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 42))
+                    .foregroundStyle(Color.acoDone)
+                    .accessibilityHidden(true)
             }
             Text("¡Becario aprobado!")
                 .font(.title2).bold().foregroundStyle(Color.acoInk)
@@ -173,8 +182,8 @@ private struct ApplicantCard: View {
                     }
 
                     HStack(spacing: 14) {
-                        statBadge(emoji: "⏱️", text: hoursText)
-                        statBadge(emoji: "⭐️", text: ratingText)
+                        statBadge(symbol: "clock.fill", text: hoursText)
+                        statBadge(symbol: "star.fill", text: ratingText)
                     }
 
                     if !applicant.message.isEmpty {
@@ -236,9 +245,12 @@ private struct ApplicantCard: View {
             : "Nuevo"
     }
 
-    private func statBadge(emoji: String, text: String) -> some View {
+    private func statBadge(symbol: String, text: String) -> some View {
         HStack(spacing: 5) {
-            Text(emoji).font(.caption).accessibilityHidden(true)
+            Image(systemName: symbol)
+                .font(.caption)
+                .foregroundStyle(Color.acoInk2)
+                .accessibilityHidden(true)
             Text(text).font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk)
         }
         .padding(.horizontal, 10).padding(.vertical, 6)
@@ -281,7 +293,7 @@ struct FamilyLiveVisitView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     statusHeader
 
-                    if current.statusEnum == .enCamino || current.statusEnum == .iniciada {
+                    if current.statusEnum == .enCamino || current.statusEnum == .esperandoConfirmacion || current.statusEnum == .iniciada {
                         liveMap
                     }
 
@@ -338,7 +350,7 @@ struct FamilyLiveVisitView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(current.studentName)
                         .font(.headline).foregroundStyle(Color.acoInk)
-                    Text("\(current.activityTypeEnum.emoji) \(current.activityTypeEnum.label) para \(current.elderlyName)")
+                    Text("\(current.activityTypeEnum.label) para \(current.elderlyName)")
                         .font(.caption).foregroundStyle(Color.acoInk2)
                 }
                 Spacer()
@@ -349,11 +361,12 @@ struct FamilyLiveVisitView: View {
 
     private var statusColor: Color {
         switch current.statusEnum {
-        case .approved:   .acoFamily
-        case .enCamino:   Color(acoHex: "D98E04")
-        case .iniciada:   .acoStudent
-        case .completada: .acoDone
-        case .cancelada:  .acoUrgent
+        case .approved:              .acoFamily
+        case .enCamino:              Color(acoHex: "D98E04")
+        case .esperandoConfirmacion: Color(acoHex: "D98E04")
+        case .iniciada:              .acoStudent
+        case .completada:            .acoDone
+        case .cancelada:             .acoUrgent
         }
     }
 
@@ -363,11 +376,11 @@ struct FamilyLiveVisitView: View {
                 Annotation(current.elderlyName, coordinate: CLLocationCoordinate2D(
                     latitude: current.latitude, longitude: current.longitude
                 )) {
-                    mapPin(emoji: "🏠", color: .acoElderly)
+                    mapPin(symbol: "house.fill", color: .acoElderly)
                 }
                 if let studentLocation {
                     Annotation(current.studentName, coordinate: studentLocation) {
-                        mapPin(emoji: "🎓", color: .acoStudent)
+                        mapPin(symbol: "graduationcap.fill", color: .acoStudent)
                     }
                 }
             }
@@ -384,12 +397,14 @@ struct FamilyLiveVisitView: View {
         }
     }
 
-    private func mapPin(emoji: String, color: Color) -> some View {
+    private func mapPin(symbol: String, color: Color) -> some View {
         ZStack {
             Circle().fill(.white).frame(width: 40, height: 40)
                 .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
             Circle().strokeBorder(color, lineWidth: 2.5).frame(width: 40, height: 40)
-            Text(emoji).font(.system(size: 19))
+            Image(systemName: symbol)
+                .font(.system(size: 17))
+                .foregroundStyle(color)
         }
     }
 

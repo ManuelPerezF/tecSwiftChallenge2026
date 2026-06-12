@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Color tokens
 extension Color {
@@ -32,6 +33,44 @@ extension Color {
             blue:    Double( int        & 0xFF) / 255,
             opacity: 1
         )
+    }
+}
+
+// MARK: - Haptics
+enum KuidarHaptic {
+    static func light() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+    static func success() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+    static func error() {
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+    }
+}
+
+// MARK: - Role SF Symbols
+extension AppRole {
+    var symbolName: String {
+        switch self {
+        case .family:  "person.2.fill"
+        case .student: "graduationcap.fill"
+        case .elderly: "figure.stand"
+        }
+    }
+}
+
+// MARK: - Activity SF Symbols
+extension ActivityType {
+    var symbolName: String {
+        switch self {
+        case .mandados:    "cart.fill"
+        case .citas:       "car.fill"
+        case .tecnologia:  "iphone"
+        case .hogar:       "house.fill"
+        case .compania:    "bubble.left.and.bubble.right.fill"
+        case .medicamento: "pills.fill"
+        }
     }
 }
 

@@ -12,6 +12,7 @@ struct ElderlyAgendaView: View {
     @State private var assignments: [APIAssignment] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var confirmingId: String?
 
     var body: some View {
         ZStack {
@@ -73,7 +74,15 @@ struct ElderlyAgendaView: View {
     }
 
     private var activeVisit: APIAssignment? {
-        assignments.first { $0.statusEnum == .enCamino || $0.statusEnum == .iniciada }
+        assignments.first {
+            $0.statusEnum == .enCamino
+                || $0.statusEnum == .esperandoConfirmacion
+                || $0.statusEnum == .iniciada
+        }
+    }
+
+    private var pendingConfirmation: APIAssignment? {
+        assignments.first { $0.statusEnum == .esperandoConfirmacion }
     }
 
     // MARK: - Agenda
@@ -81,6 +90,10 @@ struct ElderlyAgendaView: View {
     private var agenda: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                if let pending = pendingConfirmation {
+                    confirmStartBanner(pending)
+                }
+
                 if let active = activeVisit {
                     NavigationLink(value: active) {
                         activeVisitBanner(active)
@@ -94,7 +107,13 @@ struct ElderlyAgendaView: View {
                 }
 
                 ForEach(upcoming) { visit in
-                    ElderlyVisitCard(visit: visit)
+                    ElderlyVisitCard(
+                        visit: visit,
+                        isConfirming: confirmingId == visit.id,
+                        onConfirmStart: visit.statusEnum == .esperandoConfirmacion
+                            ? { Task { await confirmStart(visit) } }
+                            : nil
+                    )
                 }
             }
             .padding(.horizontal, 20)
@@ -107,10 +126,15 @@ struct ElderlyAgendaView: View {
         HStack(spacing: 14) {
             ZStack {
                 Circle().fill(.white.opacity(0.2)).frame(width: 52, height: 52)
-                Text("🎓").font(.system(size: 26)).accessibilityHidden(true)
+                Image(systemName: "graduationcap.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.white)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(visit.statusEnum == .enCamino
+                Text(visit.statusEnum == .esperandoConfirmacion
+                     ? "\(visit.studentName) quiere iniciar la visita"
+                     : visit.statusEnum == .enCamino
                      ? "\(visit.studentName) viene en camino"
                      : "\(visit.studentName) está contigo")
                     .font(.title3).fontWeight(.bold).foregroundStyle(.white)
@@ -126,6 +150,53 @@ struct ElderlyAgendaView: View {
         .clipShape(.rect(cornerRadius: 20))
         .accessibilityElement(children: .combine)
         .accessibilityHint("Abre el mapa en vivo")
+    }
+
+    private func confirmStartBanner(_ visit: APIAssignment) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("\(visit.studentName) llegó y quiere iniciar", systemImage: "hand.wave.fill")
+                .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
+            Text("Confirma para empezar a contar las horas de servicio.")
+                .font(.body).foregroundStyle(Color.acoInk2)
+            Button {
+                Task { await confirmStart(visit) }
+            } label: {
+                HStack {
+                    if confirmingId == visit.id {
+                        ProgressView().tint(.white)
+                    } else {
+                        Label("Confirmar inicio", systemImage: "checkmark.circle.fill")
+                    }
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(Color.acoElderly)
+                .clipShape(.rect(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .disabled(confirmingId == visit.id)
+        }
+        .padding(18)
+        .background(Color.acoElderlySoft)
+        .clipShape(.rect(cornerRadius: 20))
+    }
+
+    private func confirmStart(_ visit: APIAssignment) async {
+        confirmingId = visit.id
+        errorMessage = nil
+        do {
+            let updated = try await APIClient.shared.confirmarInicio(assignmentId: visit.id)
+            withAnimation(.easeInOut(duration: 0.22)) {
+                if let idx = assignments.firstIndex(where: { $0.id == updated.id }) {
+                    assignments[idx] = updated
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        confirmingId = nil
     }
 
     private var emptyState: some View {
@@ -159,6 +230,8 @@ struct ElderlyAgendaView: View {
 
 private struct ElderlyVisitCard: View {
     let visit: APIAssignment
+    var isConfirming: Bool = false
+    var onConfirmStart: (() -> Void)?
 
     var body: some View {
         AcoCard {
@@ -168,8 +241,10 @@ private struct ElderlyVisitCard: View {
                         RoundedRectangle(cornerRadius: 14)
                             .fill(Color.acoElderlySoft)
                             .frame(width: 56, height: 56)
-                        Text(visit.activityTypeEnum.emoji)
-                            .font(.system(size: 30)).accessibilityHidden(true)
+                        Image(systemName: visit.activityTypeEnum.symbolName)
+                            .font(.system(size: 26))
+                            .foregroundStyle(Color.acoElderly)
+                            .accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: 3) {
                         Text(visit.activityTypeEnum.label)
@@ -181,6 +256,26 @@ private struct ElderlyVisitCard: View {
 
                 Label(scheduledLabel, systemImage: "calendar")
                     .font(.body).foregroundStyle(Color.acoInk2)
+
+                if let onConfirmStart {
+                    Button(action: onConfirmStart) {
+                        HStack {
+                            if isConfirming {
+                                ProgressView().tint(.white)
+                            } else {
+                                Label("Confirmar inicio", systemImage: "checkmark.circle.fill")
+                            }
+                        }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.acoElderly)
+                        .clipShape(.rect(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isConfirming)
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -216,6 +311,7 @@ struct ElderlyLiveMapView: View {
     @State private var position: MapCameraPosition
     @State private var ws = WebSocketClient()
     @State private var status: AssignmentStatus
+    @State private var isConfirming = false
 
     init(assignment: APIAssignment) {
         self.assignment = assignment
@@ -234,11 +330,11 @@ struct ElderlyLiveMapView: View {
                 Annotation("Tu casa", coordinate: CLLocationCoordinate2D(
                     latitude: assignment.latitude, longitude: assignment.longitude
                 )) {
-                    mapPin(emoji: "🏠", color: .acoElderly)
+                    mapPin(symbol: "house.fill", color: .acoElderly)
                 }
                 if let studentLocation {
                     Annotation(assignment.studentName, coordinate: studentLocation) {
-                        mapPin(emoji: "🎓", color: .acoStudent)
+                        mapPin(symbol: "graduationcap.fill", color: .acoStudent)
                     }
                 }
             }
@@ -251,24 +347,76 @@ struct ElderlyLiveMapView: View {
     }
 
     private var statusBanner: some View {
-        HStack(spacing: 12) {
-            Text(status == .iniciada ? "🤝" : "🚶").font(.title2).accessibilityHidden(true)
-            Text(status == .iniciada
-                 ? "\(assignment.studentName) está contigo"
-                 : "\(assignment.studentName) viene en camino")
-                .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
-            Spacer()
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: statusIcon)
+                    .font(.title2)
+                    .foregroundStyle(Color.acoElderly)
+                    .accessibilityHidden(true)
+                Text(statusMessage)
+                    .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                Spacer()
+            }
+
+            if status == .esperandoConfirmacion {
+                Button {
+                    Task { await confirmStart() }
+                } label: {
+                    HStack {
+                        if isConfirming {
+                            ProgressView().tint(.white)
+                        } else {
+                            Label("Confirmar inicio", systemImage: "checkmark.circle.fill")
+                        }
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.acoElderly)
+                    .clipShape(.rect(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(isConfirming)
+            }
         }
         .padding(16)
         .background(Color.acoElderlySoft)
     }
 
-    private func mapPin(emoji: String, color: Color) -> some View {
+    private var statusIcon: String {
+        switch status {
+        case .iniciada: "hands.and.sparkles.fill"
+        case .esperandoConfirmacion: "hand.wave.fill"
+        default: "figure.walk"
+        }
+    }
+
+    private var statusMessage: String {
+        switch status {
+        case .iniciada: "\(assignment.studentName) está contigo"
+        case .esperandoConfirmacion: "\(assignment.studentName) quiere iniciar la visita"
+        default: "\(assignment.studentName) viene en camino"
+        }
+    }
+
+    private func confirmStart() async {
+        isConfirming = true
+        do {
+            let updated = try await APIClient.shared.confirmarInicio(assignmentId: assignment.id)
+            withAnimation(.easeInOut(duration: 0.22)) { status = updated.statusEnum }
+        } catch { /* silencioso en mapa; agenda muestra errores */ }
+        isConfirming = false
+    }
+
+    private func mapPin(symbol: String, color: Color) -> some View {
         ZStack {
             Circle().fill(.white).frame(width: 48, height: 48)
                 .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
             Circle().strokeBorder(color, lineWidth: 3).frame(width: 48, height: 48)
-            Text(emoji).font(.system(size: 23))
+            Image(systemName: symbol)
+                .font(.system(size: 20))
+                .foregroundStyle(color)
         }
     }
 

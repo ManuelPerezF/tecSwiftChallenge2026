@@ -10,17 +10,6 @@ enum ActivityType: String, Codable, CaseIterable {
     case compania    = "compania"
     case medicamento = "medicamento"
 
-    var emoji: String {
-        switch self {
-        case .mandados:    "🛒"
-        case .citas:       "🚗"
-        case .tecnologia:  "📱"
-        case .hogar:       "🏠"
-        case .compania:    "💬"
-        case .medicamento: "💊"
-        }
-    }
-
     var label: String {
         switch self {
         case .mandados:    "Mandados"
@@ -150,20 +139,22 @@ struct APIApplication: Codable, Identifiable, Hashable, Sendable {
 // MARK: - Asignaciones (visitas)
 
 enum AssignmentStatus: String, Codable, Sendable {
-    case approved, enCamino = "en_camino", iniciada, completada, cancelada
+    case approved, enCamino = "en_camino", esperandoConfirmacion = "esperando_confirmacion"
+    case iniciada, completada, cancelada
 
     var label: String {
         switch self {
-        case .approved:   "Aprobada"
-        case .enCamino:   "En camino"
-        case .iniciada:   "En curso"
-        case .completada: "Completada"
-        case .cancelada:  "Cancelada"
+        case .approved:              "Aprobada"
+        case .enCamino:              "En camino"
+        case .esperandoConfirmacion: "Esperando confirmación"
+        case .iniciada:              "En curso"
+        case .completada:            "Completada"
+        case .cancelada:             "Cancelada"
         }
     }
 
     var isActive: Bool {
-        self == .approved || self == .enCamino || self == .iniciada
+        self == .approved || self == .enCamino || self == .esperandoConfirmacion || self == .iniciada
     }
 }
 
@@ -175,6 +166,7 @@ struct APIAssignment: Codable, Identifiable, Hashable, Sendable {
     let status: String
     let approvedAt: String
     let enCaminoAt: String?
+    let inicioSolicitadoAt: String?
     let checkinAt: String?
     let checkoutAt: String?
     let hoursLogged: Double

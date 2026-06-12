@@ -51,6 +51,14 @@ export const assignmentsController = {
     }
   },
 
+  confirmarInicio(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(assignmentsService.confirmarInicio(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   completar(req: Request, res: Response, next: NextFunction): void {
     try {
       res.json(assignmentsService.completar(req.auth!, req.params.id as string));

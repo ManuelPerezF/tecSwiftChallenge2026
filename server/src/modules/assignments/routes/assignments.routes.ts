@@ -18,6 +18,7 @@ assignmentsRouter.get("/:id", assignmentsController.getById);
 // Ciclo de visita (estudiante)
 assignmentsRouter.post("/:id/en-camino", requireRole("student"), assignmentsController.enCamino);
 assignmentsRouter.post("/:id/iniciar", requireRole("student"), assignmentsController.iniciar);
+assignmentsRouter.post("/:id/confirmar-inicio", requireRole("elderly"), assignmentsController.confirmarInicio);
 assignmentsRouter.post("/:id/completar", requireRole("student"), assignmentsController.completar);
 assignmentsRouter.post("/:id/cancelar", requireRole("family"), assignmentsController.cancelar);
 
