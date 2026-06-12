@@ -20,7 +20,15 @@ assignmentsRouter.post("/:id/en-camino", requireRole("student"), assignmentsCont
 assignmentsRouter.post("/:id/iniciar", requireRole("student"), assignmentsController.iniciar);
 assignmentsRouter.post("/:id/confirmar-inicio", requireRole("elderly"), assignmentsController.confirmarInicio);
 assignmentsRouter.post("/:id/completar", requireRole("student"), assignmentsController.completar);
+// 3.15: doble confirmación de fin (familia o adulto mayor)
+assignmentsRouter.post("/:id/confirm-completion", requireRole("family", "elderly", "organizer"), assignmentsController.confirmCompletion);
 assignmentsRouter.post("/:id/cancelar", requireRole("family", "organizer"), assignmentsController.cancelar);
+
+// 3.7: el becario modifica su asignación mientras esté en 'approved'
+assignmentsRouter.post("/:id/cancelar-estudiante", requireRole("student"), assignmentsController.cancelarPorEstudiante);
+assignmentsRouter.post("/:id/proponer-cambio", requireRole("student"), assignmentsController.proposeChange);
+assignmentsRouter.get("/:id/proposal", assignmentsController.getPendingProposal);
+assignmentsRouter.post("/proposals/:id/respond", requireRole("family", "organizer"), assignmentsController.respondToProposal);
 
 // Ubicación (REST fallback del WebSocket)
 assignmentsRouter.post(

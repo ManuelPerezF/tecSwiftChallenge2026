@@ -136,12 +136,50 @@ final class APIClient {
         try await get(path: "requests/events")
     }
 
+    func fetchEventTypes() async throws -> [EventType] {
+        try await get(path: "event-types")
+    }
+
+    func createEventType(label: String, icon: String) async throws -> EventType {
+        try await post(path: "event-types", body: ["label": label, "icon": icon])
+    }
+
+    /// Crea un evento comunitario con slug de tipo libre (catálogo event_types).
+    func createCommunityEvent(
+        activityTypeSlug: String,
+        details: String,
+        scheduledDate: Date,
+        latitude: Double?,
+        longitude: Double?,
+        maxHelpersRequired: Int,
+        maxElderlyAttendees: Int
+    ) async throws -> APIRequest {
+        var body: [String: Any] = [
+            "activityType":  activityTypeSlug,
+            "details":       details,
+            "scheduledDate": ISO8601DateFormatter().string(from: scheduledDate),
+            "isUrgent":      false,
+            "isCommunityEvent": true,
+            "maxHelpersRequired": maxHelpersRequired,
+            "maxElderlyAttendees": maxElderlyAttendees,
+        ]
+        if let latitude { body["lat"] = latitude }
+        if let longitude { body["lng"] = longitude }
+        return try await post(path: "requests", body: body)
+    }
+
     func registerAttendee(requestId: String) async throws {
         let _: [String: Bool] = try await post(path: "requests/\(requestId)/attendees", body: [:])
     }
 
     func fetchAttendees(requestId: String) async throws -> [EventAttendee] {
         try await get(path: "requests/\(requestId)/attendees")
+    }
+
+    func unregisterAttendee(requestId: String) async throws {
+        let req = request(path: "requests/\(requestId)/attendees", method: "DELETE")
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        try validate(resp, data: data)
     }
 
     func deleteRequest(id: String) async throws {
@@ -202,6 +240,40 @@ final class APIClient {
         try await post(path: "assignments/\(assignmentId)/completar", body: [:])
     }
 
+    /// 3.15: la familia/adulto mayor confirma que el servicio terminó.
+    func confirmCompletion(assignmentId: String) async throws -> APIAssignment {
+        try await post(path: "assignments/\(assignmentId)/confirm-completion", body: [:])
+    }
+
+    // MARK: - Modificación de asignación por el becario (3.7)
+
+    func cancelAssignmentAsStudent(assignmentId: String) async throws -> APIAssignment {
+        try await post(path: "assignments/\(assignmentId)/cancelar-estudiante", body: [:])
+    }
+
+    func proposeScheduleChange(assignmentId: String, newDate: Date) async throws {
+        let _: [String: String] = try await post(
+            path: "assignments/\(assignmentId)/proponer-cambio",
+            body: ["scheduledDate": ISO8601DateFormatter().string(from: newDate)]
+        )
+    }
+
+    struct PendingProposal: Codable {
+        let id: String
+        let proposedDate: String
+    }
+
+    func fetchPendingProposal(assignmentId: String) async throws -> PendingProposal? {
+        try await get(path: "assignments/\(assignmentId)/proposal")
+    }
+
+    func respondToProposal(proposalId: String, accept: Bool) async throws {
+        let _: [String: Bool] = try await post(
+            path: "assignments/proposals/\(proposalId)/respond",
+            body: ["accept": accept]
+        )
+    }
+
     // MARK: - Ubicación (REST fallback)
 
     func sendLocation(assignmentId: String, latitude: Double, longitude: Double) async throws {
@@ -217,15 +289,56 @@ final class APIClient {
 
     // MARK: - Reputación
 
-    func submitRating(assignmentId: String, stars: Int, tags: [String], comment: String = "") async throws -> APIRating {
+    func submitRating(assignmentId: String, stars: Int, tags: [String], comment: String = "", isReport: Bool = false) async throws -> APIRating {
         try await post(
             path: "assignments/\(assignmentId)/ratings",
-            body: ["stars": stars, "tags": tags, "comment": comment]
+            body: ["stars": stars, "tags": tags, "comment": comment, "isReport": isReport]
         )
     }
 
     func fetchStudentProfile(id: String) async throws -> StudentProfile {
         try await get(path: "students/\(id)")
+    }
+
+    // MARK: - Notificaciones
+
+    func fetchNotifications() async throws -> [APINotification] {
+        try await get(path: "notifications")
+    }
+
+    func fetchUnreadNotificationsCount() async throws -> Int {
+        let result: [String: Int] = try await get(path: "notifications/unread-count")
+        return result["count"] ?? 0
+    }
+
+    func markNotificationRead(id: String) async throws {
+        let _: [String: Bool] = try await post(path: "notifications/\(id)/read", body: [:])
+    }
+
+    /// El becario declara su disponibilidad (morning/afternoon/evening).
+    func updateMyAvailability(_ windows: [String]) async throws -> [String] {
+        struct Response: Codable { let windows: [String] }
+        var req = request(path: "students/me/availability", method: "PUT")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["windows": windows])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validate(response, data: data)
+        return try decoder.decode(Response.self, from: data).windows
+    }
+
+    func fetchRequest(id: String) async throws -> APIRequest {
+        try await get(path: "requests/\(id)")
+    }
+
+    // MARK: - Organizador
+
+    func fetchOrganizerStudents(blocked: Bool? = nil) async throws -> [OrganizerStudent] {
+        var path = "organizer/students"
+        if let blocked { path += "?blocked=\(blocked)" }
+        return try await get(path: path)
+    }
+
+    func fetchOrganizerStudent(id: String) async throws -> OrganizerStudentDetail {
+        try await get(path: "organizer/students/\(id)")
     }
 
     /// El estudiante actualiza los tags de afinidad de su propio perfil.

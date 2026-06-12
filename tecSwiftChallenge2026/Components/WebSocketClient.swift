@@ -46,6 +46,7 @@ final class WebSocketClient {
     /// Se dispara cuando un request se reabre (cancelación del becario). Param: requestId.
     var onRequestReopened: ((String) -> Void)?
     var onChatMessage: ((APIMessage) -> Void)?
+    var onNotification: ((APINotification) -> Void)?
 
     private var task: URLSessionWebSocketTask?
     private var subscribed: Set<String> = []
@@ -159,6 +160,11 @@ final class WebSocketClient {
         case "chat:message":
             if let payload = try? decoder.decode(WSChatMessage.self, from: data) {
                 onChatMessage?(payload.message)
+            }
+        case "notification":
+            struct Envelope: Codable { let notification: APINotification }
+            if let payload = try? decoder.decode(Envelope.self, from: data) {
+                onNotification?(payload.notification)
             }
         default:
             break

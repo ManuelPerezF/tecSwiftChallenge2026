@@ -43,6 +43,8 @@ export interface ActivityRequestRow {
   is_community_event?: number;
   max_helpers_required?: number;
   active_helpers?: number;
+  max_elderly_attendees?: number;
+  active_elderly_attendees?: number;
 }
 
 export interface NormalizedRequest {
@@ -65,6 +67,8 @@ export interface NormalizedRequest {
   isCommunityEvent: boolean;
   maxHelpersRequired: number;
   activeHelpers: number;
+  maxElderlyAttendees: number;
+  activeElderlyAttendees: number;
 }
 
 function matchScore(activityType: string): number {
@@ -107,5 +111,7 @@ export function normalizeRequest(row: ActivityRequestRow): NormalizedRequest {
     isCommunityEvent: row.is_community_event === 1,
     maxHelpersRequired: row.max_helpers_required ?? 1,
     activeHelpers: row.active_helpers ?? 0,
+    maxElderlyAttendees: row.max_elderly_attendees ?? 0,
+    activeElderlyAttendees: row.active_elderly_attendees ?? 0,
   };
 }

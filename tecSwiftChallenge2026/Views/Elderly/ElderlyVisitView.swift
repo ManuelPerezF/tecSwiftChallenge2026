@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import CoreLocation
 
 enum ElderlyDestination: Hashable {
     case visitDetail(APIAssignment)
@@ -39,6 +40,18 @@ struct ElderlyVisitView: View {
         currentStatus == .esperandoConfirmacion
     }
 
+    /// 3.15: el becario marcó "Terminé" — falta la confirmación del adulto mayor/familia
+    private var needsEndConfirmation: Bool {
+        currentStatus == .esperandoConfirmacionFin
+    }
+
+    /// 3.15: actividades con traslado — el adulto mayor también transmite ubicación
+    private var isTransferActivity: Bool {
+        assignment.activityTypeEnum == .mandados || assignment.activityTypeEnum == .citas
+    }
+
+    @State private var tripTracker = ElderlyTripTracker()
+
     var body: some View {
         VStack(spacing: 0) {
             studentHeader
@@ -49,6 +62,18 @@ struct ElderlyVisitView: View {
         .ignoresSafeArea(edges: .top)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { updateTripTracking() }
+        .onChange(of: currentStatus) { _, _ in updateTripTracking() }
+        .onDisappear { tripTracker.stop() }
+    }
+
+    /// Durante 'iniciada' en actividades de traslado, transmite la ubicación del adulto mayor.
+    private func updateTripTracking() {
+        if currentStatus == .iniciada && isTransferActivity {
+            tripTracker.start(assignmentId: assignment.id)
+        } else {
+            tripTracker.stop()
+        }
     }
 
     // MARK: - Header
@@ -192,7 +217,13 @@ struct ElderlyVisitView: View {
         VStack(spacing: 14) {
             Rectangle().fill(Color.acoHair).frame(height: 1)
 
-            if hasConfirmed {
+            if needsEndConfirmation {
+                confirmEndButton
+                Text("\(firstName) dice que la visita terminó.\nConfirma para que cuenten sus horas.")
+                    .font(.body)
+                    .foregroundStyle(Color.acoInk3)
+                    .multilineTextAlignment(.center)
+            } else if hasConfirmed {
                 arrivedConfirmation
             } else {
                 confirmButton
@@ -259,7 +290,50 @@ struct ElderlyVisitView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
+    private var confirmEndButton: some View {
+        Button {
+            Task { await confirmEnd() }
+        } label: {
+            HStack(spacing: 16) {
+                if isConfirming {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .accessibilityHidden(true)
+                    Text("Sí, ya terminó")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 22)
+            .background(Color.acoElderly)
+            .clipShape(.rect(cornerRadius: 20))
+            .shadow(color: Color.acoElderly.opacity(0.4), radius: 14, x: 0, y: 7)
+        }
+        .buttonStyle(.plain)
+        .disabled(isConfirming)
+        .accessibilityLabel("Confirmar que la visita terminó")
+    }
+
     // MARK: - API
+
+    private func confirmEnd() async {
+        isConfirming = true
+        confirmError = nil
+        do {
+            let updated = try await APIClient.shared.confirmCompletion(assignmentId: assignment.id)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                currentStatus = updated.statusEnum
+            }
+            KuidarHaptic.success()
+        } catch {
+            confirmError = error.localizedDescription
+        }
+        isConfirming = false
+    }
 
     private func confirmArrival() async {
         isConfirming = true
@@ -274,6 +348,51 @@ struct ElderlyVisitView: View {
         }
         isConfirming = false
     }
+}
+
+// MARK: - Tracking del adulto mayor durante traslados (3.15)
+
+/// Transmite la ubicación del adulto mayor durante actividades de traslado
+/// (mandados, citas médicas) mientras la visita está 'iniciada'.
+@MainActor
+final class ElderlyTripTracker: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var assignmentId: String?
+    private var lastSentAt = Date.distantPast
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 25 // metros
+    }
+
+    func start(assignmentId: String) {
+        guard self.assignmentId == nil else { return }
+        self.assignmentId = assignmentId
+        if manager.authorizationStatus == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        }
+        manager.startUpdatingLocation()
+    }
+
+    func stop() {
+        assignmentId = nil
+        manager.stopUpdatingLocation()
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let loc = locations.last else { return }
+        let lat = loc.coordinate.latitude
+        let lng = loc.coordinate.longitude
+        Task { @MainActor in
+            guard let assignmentId, Date().timeIntervalSince(lastSentAt) > 10 else { return }
+            lastSentAt = Date()
+            try? await APIClient.shared.sendLocation(assignmentId: assignmentId, latitude: lat, longitude: lng)
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
 
 // MARK: - Pulse ring

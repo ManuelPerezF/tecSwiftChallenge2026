@@ -425,6 +425,7 @@ struct StatusRow: View {
         case .inProgress: .acoStudent
         case .completed:  .acoDone
         case .cancelled:  .acoInk3
+        case .full:       .acoElderly
         }
     }
 

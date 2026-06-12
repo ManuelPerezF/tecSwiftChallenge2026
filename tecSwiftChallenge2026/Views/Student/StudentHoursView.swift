@@ -61,6 +61,9 @@ struct StudentHoursView: View {
                         SectionLabel(text: "Mis intereses").padding(.top, 22)
                         tagsCard
 
+                        SectionLabel(text: "Mi disponibilidad").padding(.top, 22)
+                        availabilityCard
+
                         if let profile = studentProfile {
                             reputationSection(profile)
                         }
@@ -199,6 +202,57 @@ struct StudentHoursView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Disponibilidad (3.6: ventanas para notificaciones de cercanía)
+
+    @AppStorage("aco_studentWindows") private var savedWindows: String = ""
+
+    private var myWindows: Set<String> {
+        Set(savedWindows.split(separator: ",").map(String.init))
+    }
+
+    private var availabilityCard: some View {
+        AcoCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Te avisaremos de solicitudes cercanas solo en tus horarios disponibles.")
+                    .font(.caption).foregroundStyle(Color.acoInk2)
+
+                HStack(spacing: 8) {
+                    availabilityChip("Mañana", window: "morning")
+                    availabilityChip("Tarde", window: "afternoon")
+                    availabilityChip("Noche", window: "evening")
+                }
+            }
+        }
+    }
+
+    private func availabilityChip(_ label: String, window: String) -> some View {
+        let isOn = myWindows.contains(window)
+        return Button {
+            Task {
+                var windows = myWindows
+                if isOn { windows.remove(window) } else { windows.insert(window) }
+                if let saved = try? await APIClient.shared.updateMyAvailability(Array(windows)) {
+                    savedWindows = saved.joined(separator: ",")
+                    KuidarHaptic.light()
+                }
+            }
+        } label: {
+            Text(label)
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundStyle(isOn ? Color.acoStudent : Color.acoInk2)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(isOn ? Color.acoStudentSoft : Color(acoHex: "F8F5F1"))
+                .clipShape(.capsule)
+                .overlay {
+                    Capsule().strokeBorder(isOn ? Color.acoStudent : Color.acoHair, lineWidth: isOn ? 1.5 : 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(label), \(isOn ? "disponible" : "no disponible")")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     // MARK: - Tags (intereses para el recomendador de afinidad)

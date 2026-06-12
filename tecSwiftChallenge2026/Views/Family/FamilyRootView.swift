@@ -14,7 +14,10 @@ struct FamilyRootView: View {
                 NavigationStack {
                     FamilyPublishView()
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
             Tab("Solicitudes", systemImage: "list.bullet", value: FamilyTab.dashboard) {
@@ -26,7 +29,10 @@ struct FamilyRootView: View {
                         .navigationDestination(for: APIAssignment.self) { assignment in
                             FamilyLiveVisitView(assignment: assignment)
                         }
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
             Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: FamilyTab.messages) {
@@ -40,19 +46,28 @@ struct FamilyRootView: View {
                                 isFamily: true
                             )
                         }
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
             Tab("Eventos", systemImage: "person.3.fill", value: FamilyTab.events) {
                 NavigationStack {
                     CommunityEventsView(isOrganizer: false)
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
             Tab("Mi familia", systemImage: "person.2.fill", value: FamilyTab.family) {
                 NavigationStack {
                     FamilyManageView()
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
         }

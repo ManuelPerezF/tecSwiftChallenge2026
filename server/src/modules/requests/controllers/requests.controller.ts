@@ -67,4 +67,12 @@ export const requestsController = {
       next(error);
     }
   },
+
+  unregisterAttendee(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(requestsService.unregisterAttendee(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

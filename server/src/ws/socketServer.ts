@@ -72,6 +72,13 @@ function send(ws: WebSocket, payload: unknown): void {
   }
 }
 
+/** Envía un payload a todas las conexiones de un usuario (notificaciones in-app). */
+export function sendToUser(userId: string, payload: unknown): void {
+  for (const [ws, state] of clients) {
+    if (state.auth.id === userId) send(ws, payload);
+  }
+}
+
 function locationsPayload(assignmentId: string): unknown {
   const rows = db
     .prepare("SELECT role, latitude, longitude, recorded_at FROM location_updates WHERE assignment_id = ?")

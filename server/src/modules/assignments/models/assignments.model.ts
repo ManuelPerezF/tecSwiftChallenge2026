@@ -12,6 +12,7 @@ export type AssignmentStatus =
   | "en_camino"
   | "esperando_confirmacion"
   | "iniciada"
+  | "esperando_confirmacion_fin"
   | "completada"
   | "cancelada";
 

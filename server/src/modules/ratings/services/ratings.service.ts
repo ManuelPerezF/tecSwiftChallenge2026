@@ -51,15 +51,31 @@ export const ratingsService = {
     const id = uuidv4();
     const tx = db.transaction(() => {
       db.prepare(`
-        INSERT INTO ratings (id, assignment_id, student_id, author_user_id, stars, tags, comment)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(id, assignmentId, assignment.student_id, auth.id, data.stars, JSON.stringify(data.tags), data.comment);
+        INSERT INTO ratings (id, assignment_id, student_id, author_user_id, stars, tags, comment, is_report)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, assignmentId, assignment.student_id, auth.id, data.stars, JSON.stringify(data.tags), data.comment, data.isReport ? 1 : 0);
 
       // Recalcular promedio del estudiante
       const avg = db.prepare("SELECT AVG(stars) AS avg FROM ratings WHERE student_id = ?")
         .get(assignment.student_id) as { avg: number | null };
       db.prepare("UPDATE students SET average_rating = ? WHERE id = ?")
         .run(Math.round((avg.avg ?? 0) * 10) / 10, assignment.student_id);
+
+      // 3.5: reporte con rating bajo (≤2★) → bloqueo del becario
+      if (data.isReport && data.stars <= 2) {
+        db.prepare(`
+          INSERT INTO student_blocks (id, student_id, reason, source_rating_id, source_family_id, comment)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          uuidv4(),
+          assignment.student_id,
+          `Reporte de familia con calificación de ${data.stars}★`,
+          id,
+          assignment.family_id,
+          data.comment,
+        );
+        db.prepare("UPDATE students SET is_blocked = 1 WHERE id = ?").run(assignment.student_id);
+      }
     });
     tx();
 

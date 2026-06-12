@@ -20,6 +20,10 @@ requestsRouter.delete("/:id", requireRole("family", "organizer"), requestsContro
 // Asistentes a eventos comunitarios
 requestsRouter.post("/:id/attendees", requireRole("family", "elderly"), requestsController.registerAttendee);
 requestsRouter.get("/:id/attendees", requestsController.listAttendees);
+requestsRouter.delete("/:id/attendees", requireRole("family", "elderly"), requestsController.unregisterAttendee);
+// Alias semánticos (3.9)
+requestsRouter.post("/:id/attend", requireRole("family", "elderly"), requestsController.registerAttendee);
+requestsRouter.delete("/:id/attend", requireRole("family", "elderly"), requestsController.unregisterAttendee);
 
 // Postulaciones anidadas
 requestsRouter.post(

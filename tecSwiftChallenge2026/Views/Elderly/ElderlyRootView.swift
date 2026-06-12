@@ -26,13 +26,19 @@ struct ElderlyRootView: View {
                                 ElderlyRatingView(assignmentId: assignmentId, studentName: studentName)
                             }
                         }
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoElderly) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
             Tab("Mi familia", systemImage: "person.2.fill", value: ElderlyTab.family) {
                 NavigationStack {
                     ElderlyFamilyView()
-                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoElderly) }
+                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                        }
                 }
             }
         }

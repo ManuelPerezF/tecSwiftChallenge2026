@@ -334,6 +334,10 @@ struct FamilyLiveVisitView: View {
     @State private var comment = ""
     @State private var ratingSent = false
     @State private var errorMessage: String?
+    @State private var isReporting = false
+    // 3.7: propuesta de cambio de horario pendiente
+    @State private var pendingProposal: APIClient.PendingProposal?
+    @State private var isConfirmingEnd = false
 
     init(assignment: APIAssignment) {
         self.assignment = assignment
@@ -351,8 +355,17 @@ struct FamilyLiveVisitView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     statusHeader
 
-                    if current.statusEnum == .enCamino || current.statusEnum == .esperandoConfirmacion || current.statusEnum == .iniciada {
+                    if let pendingProposal, current.statusEnum == .approved {
+                        proposalSection(pendingProposal)
+                    }
+
+                    if current.statusEnum == .enCamino || current.statusEnum == .esperandoConfirmacion
+                        || current.statusEnum == .iniciada || current.statusEnum == .esperandoConfirmacionFin {
                         liveMap
+                    }
+
+                    if current.statusEnum == .esperandoConfirmacionFin {
+                        confirmEndSection
                     }
 
                     if current.statusEnum == .completada {
@@ -373,6 +386,113 @@ struct FamilyLiveVisitView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { startLive() }
         .onDisappear { ws.disconnect() }
+        .task { await loadProposal() }
+    }
+
+    // MARK: - Propuesta de cambio de horario (3.7)
+
+    private func loadProposal() async {
+        guard current.statusEnum == .approved else { return }
+        pendingProposal = try? await APIClient.shared.fetchPendingProposal(assignmentId: current.id)
+    }
+
+    private func proposalSection(_ proposal: APIClient.PendingProposal) -> some View {
+        AcoCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("\(current.studentName) propone otro horario", systemImage: "clock.arrow.2.circlepath")
+                    .font(.subheadline).fontWeight(.bold)
+                    .foregroundStyle(Color.acoInk)
+
+                Text(formattedProposalDate(proposal.proposedDate))
+                    .font(.title3).bold()
+                    .foregroundStyle(Color.acoFamily)
+
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await respondProposal(proposal, accept: false) }
+                    } label: {
+                        Text("Rechazar")
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(Color.acoInk2)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color(acoHex: "F0EBE3"))
+                            .clipShape(.rect(cornerRadius: 11))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        Task { await respondProposal(proposal, accept: true) }
+                    } label: {
+                        Text("Aceptar nueva hora")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.acoFamily)
+                            .clipShape(.rect(cornerRadius: 11))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func formattedProposalDate(_ iso: String) -> String {
+        let parser = ISO8601DateFormatter()
+        guard let date = parser.date(from: iso) else { return iso }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        df.dateFormat = "EEEE d MMM · HH:mm"
+        return df.string(from: date).capitalized
+    }
+
+    private func respondProposal(_ proposal: APIClient.PendingProposal, accept: Bool) async {
+        do {
+            try await APIClient.shared.respondToProposal(proposalId: proposal.id, accept: accept)
+            withAnimation(.easeInOut(duration: 0.22)) { pendingProposal = nil }
+            if accept { KuidarHaptic.success() }
+            await refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Confirmación de fin (3.15)
+
+    private var confirmEndSection: some View {
+        AcoCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("\(current.studentName) marcó la visita como terminada", systemImage: "checkmark.seal")
+                    .font(.subheadline).fontWeight(.bold)
+                    .foregroundStyle(Color.acoInk)
+
+                Text("¿El servicio terminó? Al confirmar se registrarán las horas reales del becario.")
+                    .font(.caption).foregroundStyle(Color.acoInk2)
+
+                CTAButton(
+                    label: isConfirmingEnd ? "Confirmando…" : "Sí, el servicio terminó",
+                    leadingSymbol: "checkmark.circle.fill",
+                    tint: .acoFamily,
+                    disabled: isConfirmingEnd
+                ) {
+                    Task { await confirmEnd() }
+                }
+            }
+        }
+    }
+
+    private func confirmEnd() async {
+        isConfirmingEnd = true
+        errorMessage = nil
+        do {
+            let updated = try await APIClient.shared.confirmCompletion(assignmentId: current.id)
+            withAnimation(.easeInOut(duration: 0.22)) { current = updated }
+            KuidarHaptic.success()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isConfirmingEnd = false
     }
 
     // MARK: - Live
@@ -424,6 +544,7 @@ struct FamilyLiveVisitView: View {
         case .esperandoConfirmacion: Color(acoHex: "D98E04")
         case .iniciada:              .acoStudent
         case .completada:            .acoDone
+        case .esperandoConfirmacionFin: Color(acoHex: "D98E04")
         case .cancelada:             .acoUrgent
         }
     }
@@ -496,6 +617,19 @@ struct FamilyLiveVisitView: View {
                         .background(Color(acoHex: "F8F5F1"))
                         .clipShape(.rect(cornerRadius: 10))
 
+                    if stars > 0 && stars <= 2 {
+                        Toggle(isOn: $isReporting) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Reportar al becario")
+                                    .font(.subheadline).fontWeight(.semibold)
+                                    .foregroundStyle(Color.acoInk)
+                                Text("Su perfil quedará bloqueado y el organizador revisará tu comentario.")
+                                    .font(.caption2).foregroundStyle(Color.acoInk3)
+                            }
+                        }
+                        .tint(.acoUrgent)
+                    }
+
                     CTAButton(label: "Enviar calificación", tint: .acoFamily, disabled: stars == 0) {
                         Task { await sendRating() }
                     }
@@ -511,7 +645,8 @@ struct FamilyLiveVisitView: View {
                 assignmentId: current.id,
                 stars: stars,
                 tags: [],
-                comment: comment
+                comment: comment,
+                isReport: isReporting
             )
             withAnimation(.easeInOut(duration: 0.22)) { ratingSent = true }
         } catch {

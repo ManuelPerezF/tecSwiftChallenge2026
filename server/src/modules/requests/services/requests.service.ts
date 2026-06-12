@@ -7,6 +7,7 @@ import {
   type ActivityRequestRow,
   type NormalizedRequest,
 } from "../../../shared/utils/requestMapper.js";
+import { notificationsService } from "../../notifications/services/notifications.service.js";
 import type { CreateRequestBody } from "../models/requests.model.js";
 
 const SELECT_WITH_ELDERLY = `
@@ -14,7 +15,8 @@ const SELECT_WITH_ELDERLY = `
          e.first_name AS elderly_name, e.neighborhood,
          CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
          CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude,
-         (SELECT COUNT(*) FROM assignments a WHERE a.request_id = r.id AND a.status != 'cancelada') AS active_helpers
+         (SELECT COUNT(*) FROM assignments a WHERE a.request_id = r.id AND a.status != 'cancelada') AS active_helpers,
+         (SELECT COUNT(*) FROM event_attendees ea WHERE ea.request_id = r.id) AS active_elderly_attendees
   FROM   activity_requests r
   LEFT JOIN elderly_profiles e ON r.elderly_profile_id = e.id
 `;
@@ -51,7 +53,7 @@ export const requestsService = {
   /** Eventos comunitarios visibles para todos los roles autenticados. */
   findCommunityEvents(): NormalizedRequest[] {
     const rows = db
-      .prepare(`${SELECT_WITH_ELDERLY} WHERE r.is_community_event = 1 AND r.status IN ('open','claimed','inProgress') ORDER BY r.scheduled_date ASC`)
+      .prepare(`${SELECT_WITH_ELDERLY} WHERE r.is_community_event = 1 AND r.status IN ('open','claimed','inProgress','full') ORDER BY r.scheduled_date ASC`)
       .all() as ActivityRequestRow[];
     return rows.map(normalizeRequest);
   },
@@ -64,6 +66,7 @@ export const requestsService = {
       throw new UnauthorizedError("Solo un organizador puede crear eventos comunitarios");
     }
     const maxHelpers = isCommunityEvent ? Math.max(data.maxHelpersRequired ?? 1, 1) : 1;
+    const maxElderly = isCommunityEvent ? Math.max(data.maxElderlyAttendees ?? 0, 0) : 0;
 
     // Resolver adulto mayor: el indicado o el primero de la familia
     let elderly: ElderlyRow | undefined;
@@ -90,8 +93,8 @@ export const requestsService = {
     const requestId = uuidv4();
     db.prepare(`
       INSERT INTO activity_requests
-        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes, is_community_event, max_helpers_required)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes, is_community_event, max_helpers_required, max_elderly_attendees)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       requestId,
       auth.familyId,
@@ -105,19 +108,67 @@ export const requestsService = {
       data.durationMinutes ?? null,
       isCommunityEvent ? 1 : 0,
       maxHelpers,
+      maxElderly,
     );
 
+    // 3.6: notificar a becarios cercanos (+familias cercanas si es evento comunitario)
+    if (isCommunityEvent) {
+      notificationsService.notifyNearbyOfCommunityEvent(requestId);
+    } else {
+      notificationsService.notifyNearbyStudentsOfRequest(requestId);
+    }
+
     return this.findById(requestId);
+  },
+
+  /** Recalcula el estado 'full'/'open' de un evento según ambos topes (becarios y adultos mayores). */
+  recomputeEventFullness(requestId: string): void {
+    const row = db
+      .prepare(`
+        SELECT r.id, r.status, r.is_community_event, r.max_helpers_required, r.max_elderly_attendees,
+               (SELECT COUNT(*) FROM assignments a WHERE a.request_id = r.id AND a.status != 'cancelada') AS helpers,
+               (SELECT COUNT(*) FROM event_attendees ea WHERE ea.request_id = r.id) AS attendees
+        FROM activity_requests r WHERE r.id = ?
+      `)
+      .get(requestId) as {
+        id: string; status: string; is_community_event: number;
+        max_helpers_required: number; max_elderly_attendees: number;
+        helpers: number; attendees: number;
+      } | undefined;
+    if (!row || row.is_community_event !== 1) return;
+    // Solo gestionamos la transición open ⇄ full (no tocar inProgress/completed/cancelled)
+    if (row.status !== "open" && row.status !== "full" && row.status !== "claimed") return;
+
+    const helpersFull = row.helpers >= row.max_helpers_required;
+    const elderlyFull = row.max_elderly_attendees > 0 && row.attendees >= row.max_elderly_attendees;
+    const shouldBeFull = helpersFull || elderlyFull;
+
+    if (shouldBeFull && row.status !== "full") {
+      db.prepare("UPDATE activity_requests SET status = 'full' WHERE id = ?").run(row.id);
+    } else if (!shouldBeFull && row.status === "full") {
+      db.prepare("UPDATE activity_requests SET status = 'open' WHERE id = ?").run(row.id);
+    }
   },
 
   /** Registro de asistentes (familias/adultos mayores) a un evento comunitario. */
   registerAttendee(auth: AuthContext, requestId: string): { ok: true } {
     const row = db
-      .prepare("SELECT id, is_community_event FROM activity_requests WHERE id = ?")
-      .get(requestId) as { id: string; is_community_event: number } | undefined;
+      .prepare("SELECT id, is_community_event, status, max_elderly_attendees FROM activity_requests WHERE id = ?")
+      .get(requestId) as {
+        id: string; is_community_event: number; status: string; max_elderly_attendees: number;
+      } | undefined;
     if (!row) throw new NotFoundError("Evento no encontrado");
     if (row.is_community_event !== 1) {
       throw new AppError("Esta solicitud no es un evento comunitario", 409, "NOT_COMMUNITY_EVENT");
+    }
+
+    if (row.max_elderly_attendees > 0) {
+      const { n } = db
+        .prepare("SELECT COUNT(*) AS n FROM event_attendees WHERE request_id = ?")
+        .get(requestId) as { n: number };
+      if (n >= row.max_elderly_attendees) {
+        throw new AppError("El evento ya está lleno", 409, "EVENT_FULL");
+      }
     }
 
     const existing = db
@@ -127,6 +178,17 @@ export const requestsService = {
 
     db.prepare("INSERT INTO event_attendees (id, request_id, attendee_user_id) VALUES (?, ?, ?)")
       .run(uuidv4(), requestId, auth.id);
+    this.recomputeEventFullness(requestId);
+    return { ok: true };
+  },
+
+  /** Cancelar asistencia a un evento. Si se libera cupo, el evento vuelve a 'open'. */
+  unregisterAttendee(auth: AuthContext, requestId: string): { ok: true } {
+    const result = db
+      .prepare("DELETE FROM event_attendees WHERE request_id = ? AND attendee_user_id = ?")
+      .run(requestId, auth.id);
+    if (result.changes === 0) throw new NotFoundError("No estabas registrado en este evento");
+    this.recomputeEventFullness(requestId);
     return { ok: true };
   },
 

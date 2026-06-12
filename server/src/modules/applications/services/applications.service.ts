@@ -59,6 +59,14 @@ export const applicationsService = {
   apply(auth: AuthContext, requestId: string, data: ApplyBody): ApplicationView {
     if (!auth.studentId) throw new UnauthorizedError("Solo estudiantes pueden postularse");
 
+    // 3.5: un becario bloqueado no puede postularse a solicitudes ni eventos
+    const student = db
+      .prepare("SELECT is_blocked FROM students WHERE id = ?")
+      .get(auth.studentId) as { is_blocked: number } | undefined;
+    if (student?.is_blocked === 1) {
+      throw new AppError("Tu perfil está bloqueado temporalmente. Contacta a tu organizador.", 403, "STUDENT_BLOCKED");
+    }
+
     const request = db
       .prepare("SELECT id, status FROM activity_requests WHERE id = ?")
       .get(requestId) as { id: string; status: string } | undefined;
@@ -127,12 +135,12 @@ export const applicationsService = {
       `).run(assignmentId, app.request_id, app.id, app.student_id);
 
       if (app.is_community_event === 1) {
-        // Evento multi-cupo: sigue abierto hasta llenar max_helpers_required
+        // Evento multi-cupo: sigue abierto hasta llenar max_helpers_required → estado 'full'
         const { n } = db
           .prepare("SELECT COUNT(*) AS n FROM assignments WHERE request_id = ? AND status != 'cancelada'")
           .get(app.request_id) as { n: number };
         if (n >= app.max_helpers_required) {
-          db.prepare("UPDATE activity_requests SET status = 'claimed' WHERE id = ?").run(app.request_id);
+          db.prepare("UPDATE activity_requests SET status = 'full' WHERE id = ?").run(app.request_id);
           db.prepare("UPDATE applications SET status = 'waiting_list' WHERE request_id = ? AND status = 'pending'")
             .run(app.request_id);
         }

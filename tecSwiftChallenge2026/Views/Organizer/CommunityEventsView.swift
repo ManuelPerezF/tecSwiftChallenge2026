@@ -25,8 +25,14 @@ struct CommunityEventsView: View {
         }
         .navigationTitle("Eventos comunitarios")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
-        .refreshable { await load() }
+        .task {
+            await EventTypeCatalog.shared.loadIfNeeded()
+            await load()
+        }
+        .refreshable {
+            await EventTypeCatalog.shared.reload()
+            await load()
+        }
     }
 
     private var list: some View {
@@ -94,20 +100,20 @@ private struct EventCard: View {
         AcoCard {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    Image(systemName: event.activityTypeEnum.symbolName)
+                    Image(systemName: EventTypeCatalog.shared.icon(for: event.activityType))
                         .font(.title3)
                         .foregroundStyle(Color.acoFamily)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(event.activityTypeEnum.label)
+                        Text(EventTypeCatalog.shared.label(for: event.activityType))
                             .font(.headline).foregroundStyle(Color.acoInk)
                         Text(event.scheduledDateFormatted)
                             .font(.caption).foregroundStyle(Color.acoInk2)
                     }
                     Spacer()
                     BadgeLabel(
-                        text: event.statusEnum == .open ? "Cupo abierto" : "Cupo lleno",
-                        color: event.statusEnum == .open ? .acoFamily : .acoInk3
+                        text: event.isFull ? "Lleno" : (event.statusEnum == .open ? "Cupo abierto" : "Cupo lleno"),
+                        color: event.isFull ? .acoElderly : (event.statusEnum == .open ? .acoFamily : .acoInk3)
                     )
                 }
 
@@ -124,6 +130,14 @@ private struct EventCard: View {
                         .accessibilityHidden(true)
                     Text(event.helpersLabel)
                         .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk)
+                    if let elderlyQuota = event.elderlyQuotaLabel {
+                        Image(systemName: "figure.stand")
+                            .font(.caption)
+                            .foregroundStyle(Color.acoElderly)
+                            .accessibilityHidden(true)
+                        Text(elderlyQuota)
+                            .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk)
+                    }
                     if !event.neighborhood.isEmpty {
                         Text("· \(event.neighborhood)")
                             .font(.caption).foregroundStyle(Color.acoInk3)
@@ -178,12 +192,29 @@ struct CommunityEventDetailView: View {
                     }
 
                     if !isOrganizer {
-                        CTAButton(
-                            label: isRegistered ? "¡Asistencia registrada!" : "Asistiré a este evento",
-                            leadingSymbol: isRegistered ? "checkmark.circle.fill" : "hand.raised.fill",
-                            tint: .acoFamily,
-                            disabled: isRegistered || isBusy
-                        ) { Task { await register() } }
+                        if event.isFull && !isRegistered {
+                            Label("Este evento ya está lleno", systemImage: "person.crop.circle.badge.xmark")
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(Color.acoInk3)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        } else {
+                            CTAButton(
+                                label: isRegistered ? "¡Asistencia registrada!" : "Asistiré a este evento",
+                                leadingSymbol: isRegistered ? "checkmark.circle.fill" : "hand.raised.fill",
+                                tint: .acoFamily,
+                                disabled: isRegistered || isBusy
+                            ) { Task { await register() } }
+
+                            if isRegistered {
+                                Button("Ya no podré asistir") {
+                                    Task { await unregister() }
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(Color.acoInk3)
+                                .frame(maxWidth: .infinity)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -201,17 +232,20 @@ struct CommunityEventDetailView: View {
         AcoCard {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    Image(systemName: event.activityTypeEnum.symbolName)
+                    Image(systemName: EventTypeCatalog.shared.icon(for: event.activityType))
                         .font(.title2)
                         .foregroundStyle(Color.acoFamily)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(event.activityTypeEnum.label)
+                        Text(EventTypeCatalog.shared.label(for: event.activityType))
                             .font(.title3).bold().foregroundStyle(Color.acoInk)
                         Text(event.scheduledDateFormatted)
                             .font(.subheadline).foregroundStyle(Color.acoInk2)
                     }
                     Spacer()
+                    if event.isFull {
+                        BadgeLabel(text: "Lleno", color: .acoElderly)
+                    }
                 }
 
                 if !event.details.isEmpty {
@@ -221,7 +255,11 @@ struct CommunityEventDetailView: View {
 
                 HStack(spacing: 14) {
                     statChip(symbol: "graduationcap.fill", text: event.helpersLabel)
-                    statChip(symbol: "person.2.fill", text: "\(attendees.count) asistentes")
+                    if let elderlyQuota = event.elderlyQuotaLabel {
+                        statChip(symbol: "figure.stand", text: elderlyQuota)
+                    } else {
+                        statChip(symbol: "person.2.fill", text: "\(attendees.count) asistentes")
+                    }
                 }
             }
         }
@@ -291,6 +329,19 @@ struct CommunityEventDetailView: View {
             try await APIClient.shared.registerAttendee(requestId: event.id)
             withAnimation(.easeInOut(duration: 0.22)) { isRegistered = true }
             KuidarHaptic.success()
+            await loadAttendees()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isBusy = false
+    }
+
+    private func unregister() async {
+        isBusy = true
+        errorMessage = nil
+        do {
+            try await APIClient.shared.unregisterAttendee(requestId: event.id)
+            withAnimation(.easeInOut(duration: 0.22)) { isRegistered = false }
             await loadAttendees()
         } catch {
             errorMessage = error.localizedDescription

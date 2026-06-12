@@ -40,6 +40,27 @@ studentsRouter.put("/me/tags", requireRole("student"), (req, res, next) => {
   }
 });
 
+const availabilityBodySchema = z.object({
+  windows: z.array(z.enum(["morning", "afternoon", "evening"])).max(3),
+});
+
+/** 3.6: el becario declara su disponibilidad (ventanas horarias) para recibir notificaciones. */
+studentsRouter.put("/me/availability", requireRole("student"), (req, res, next) => {
+  try {
+    if (!req.auth?.studentId) throw new UnauthorizedError("Solo estudiantes");
+
+    const parsed = availabilityBodySchema.safeParse(req.body);
+    if (!parsed.success) throw new ValidationError("Disponibilidad inválida");
+
+    const windows = [...new Set(parsed.data.windows)];
+    db.prepare("UPDATE students SET available_windows = ? WHERE id = ?")
+      .run(JSON.stringify(windows), req.auth.studentId);
+    res.json({ windows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 function fetchStudentById(id: string, res: import("express").Response, next: import("express").NextFunction) {
   try {
     const row = db.prepare(`

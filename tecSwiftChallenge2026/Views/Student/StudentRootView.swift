@@ -10,6 +10,20 @@ struct StudentRootView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
+            // Mapa al centro de la tab bar (Visitas · Mapa · Horas · Mensajes)
+            Tab("Visitas", systemImage: "checkmark.circle", value: StudentTab.commitments) {
+                NavigationStack {
+                    StudentCommitmentsView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                NotificationBellButton(tint: .acoStudent, isStudent: true)
+                            }
+                            ToolbarItem(placement: .topBarTrailing) {
+                                logoutButton
+                            }
+                        }
+                }
+            }
             Tab("Mapa", systemImage: "map", value: StudentTab.map) {
                 NavigationStack {
                     StudentMapView()
@@ -18,15 +32,8 @@ struct StudentRootView: View {
                         }
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                logoutButton
+                                NotificationBellButton(tint: .acoStudent, isStudent: true)
                             }
-                        }
-                }
-            }
-            Tab("Visitas", systemImage: "checkmark.circle", value: StudentTab.commitments) {
-                NavigationStack {
-                    StudentCommitmentsView()
-                        .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 logoutButton
                             }
@@ -38,6 +45,9 @@ struct StudentRootView: View {
                     StudentHoursView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
+                                NotificationBellButton(tint: .acoStudent, isStudent: true)
+                            }
+                            ToolbarItem(placement: .topBarTrailing) {
                                 logoutButton
                             }
                         }
@@ -47,6 +57,9 @@ struct StudentRootView: View {
                 NavigationStack {
                     StudentInboxView()
                         .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                NotificationBellButton(tint: .acoStudent, isStudent: true)
+                            }
                             ToolbarItem(placement: .topBarTrailing) {
                                 logoutButton
                             }

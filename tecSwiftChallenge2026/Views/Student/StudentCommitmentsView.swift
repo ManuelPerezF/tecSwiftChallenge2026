@@ -9,6 +9,10 @@ struct StudentCommitmentsView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var busyAssignmentId: String?
+    // 3.7: proponer cambio de horario
+    @State private var proposingAssignment: APIAssignment?
+    @State private var proposedDate = Date()
+    @State private var cancelCandidate: APIAssignment?
 
     var body: some View {
         ZStack {
@@ -26,6 +30,84 @@ struct StudentCommitmentsView: View {
         .navigationBarTitleDisplayMode(.large)
         .task { await load() }
         .refreshable { await load() }
+        .sheet(item: $proposingAssignment) { assignment in
+            proposeSheet(assignment)
+        }
+        .confirmationDialog(
+            "¿Cancelar esta visita?",
+            isPresented: Binding(get: { cancelCandidate != nil }, set: { if !$0 { cancelCandidate = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Sí, cancelar mi visita", role: .destructive) {
+                if let assignment = cancelCandidate {
+                    Task { await cancelAssignment(assignment) }
+                }
+            }
+            Button("No, la mantengo", role: .cancel) { cancelCandidate = nil }
+        } message: {
+            Text("La solicitud volverá a abrirse para otros becarios.")
+        }
+    }
+
+    // MARK: - Proponer otro horario (3.7)
+
+    private func proposeSheet(_ assignment: APIAssignment) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Propón una nueva hora para la visita de \(assignment.activityTypeEnum.label.lowercased()) con \(assignment.elderlyName). La familia debe aceptarla.")
+                    .font(.body).foregroundStyle(Color.acoInk2)
+
+                DatePicker("Nueva fecha", selection: $proposedDate, in: Date()...)
+                    .datePickerStyle(.graphical)
+                    .tint(.acoStudent)
+
+                CTAButton(label: "Enviar propuesta", tint: .acoStudent) {
+                    Task {
+                        do {
+                            try await APIClient.shared.proposeScheduleChange(
+                                assignmentId: assignment.id,
+                                newDate: proposedDate
+                            )
+                            proposingAssignment = nil
+                            KuidarHaptic.success()
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            proposingAssignment = nil
+                        }
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .navigationTitle("Cambiar horario")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancelar") { proposingAssignment = nil }
+                        .foregroundStyle(Color.acoInk3)
+                }
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func cancelAssignment(_ assignment: APIAssignment) async {
+        busyAssignmentId = assignment.id
+        errorMessage = nil
+        do {
+            let updated = try await APIClient.shared.cancelAssignmentAsStudent(assignmentId: assignment.id)
+            withAnimation(.easeInOut(duration: 0.22)) {
+                if let idx = assignments.firstIndex(where: { $0.id == updated.id }) {
+                    assignments[idx] = updated
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        busyAssignmentId = nil
+        cancelCandidate = nil
     }
 
     private var pendingApplications: [APIApplication] {
@@ -46,7 +128,12 @@ struct StudentCommitmentsView: View {
                     AssignmentCard(
                         assignment: assignment,
                         isBusy: busyAssignmentId == assignment.id,
-                        onAdvance: { Task { await advance(assignment) } }
+                        onAdvance: { Task { await advance(assignment) } },
+                        onCancel: { cancelCandidate = assignment },
+                        onProposeChange: {
+                            proposedDate = assignment.scheduledDateParsed
+                            proposingAssignment = assignment
+                        }
                     )
                 }
 
@@ -61,7 +148,7 @@ struct StudentCommitmentsView: View {
                 if !history.isEmpty {
                     sectionLabel("HISTORIAL")
                     ForEach(history) { assignment in
-                        AssignmentCard(assignment: assignment, isBusy: false, onAdvance: {})
+                        AssignmentCard(assignment: assignment, isBusy: false, onAdvance: {}, onCancel: nil, onProposeChange: nil)
                     }
                 }
             }
@@ -129,10 +216,11 @@ struct StudentCommitmentsView: View {
                 }
             case .enCamino:
                 updated = try await APIClient.shared.markIniciada(assignmentId: assignment.id)
-            case .esperandoConfirmacion:
+            case .esperandoConfirmacion, .esperandoConfirmacionFin:
                 busyAssignmentId = nil
                 return
             case .iniciada:
+                // 3.15: ahora "Terminé" deja la visita en esperando_confirmacion_fin
                 updated = try await APIClient.shared.markCompletada(assignmentId: assignment.id)
             default:
                 busyAssignmentId = nil
@@ -156,19 +244,34 @@ private struct AssignmentCard: View {
     let assignment: APIAssignment
     let isBusy: Bool
     let onAdvance: () -> Void
+    let onCancel: (() -> Void)?
+    let onProposeChange: (() -> Void)?
 
     private var currentStep: Int {
         switch assignment.statusEnum {
-        case .approved:              0
-        case .enCamino:              1
-        case .esperandoConfirmacion: 2
-        case .iniciada:              3
-        case .completada:            4
-        case .cancelada:             0
+        case .approved:                 0
+        case .enCamino:                 1
+        case .esperandoConfirmacion:    2
+        case .iniciada:                 3
+        case .esperandoConfirmacionFin: 4
+        case .completada:               4
+        case .cancelada:                0
         }
     }
 
     private var isWaitingConfirm: Bool { assignment.statusEnum == .esperandoConfirmacion }
+    private var isWaitingFinishConfirm: Bool { assignment.statusEnum == .esperandoConfirmacionFin }
+
+    /// 3.8: minutos que faltan para poder marcar "Voy en camino" (15 min antes de la cita)
+    private var minutesUntilAvailable: Int {
+        let available = assignment.scheduledDateParsed.addingTimeInterval(-15 * 60)
+        let remaining = available.timeIntervalSinceNow
+        return remaining > 0 ? Int(ceil(remaining / 60)) : 0
+    }
+
+    private var isTooEarly: Bool {
+        assignment.statusEnum == .approved && minutesUntilAvailable > 0
+    }
 
     private var isDone: Bool { assignment.statusEnum == .completada }
     private var isCancelled: Bool { assignment.statusEnum == .cancelada }
@@ -258,12 +361,21 @@ private struct AssignmentCard: View {
                 .foregroundStyle(Color(acoHex: "D98E04"))
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.vertical, 4)
+        } else if isWaitingFinishConfirm {
+            Label("Esperando que la familia confirme el fin del servicio", systemImage: "checkmark.seal")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color(acoHex: "D98E04"))
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 4)
         } else {
             VStack(spacing: 8) {
                 Button(action: onAdvance) {
                     HStack(spacing: 8) {
                         if isBusy {
                             ProgressView().tint(.white)
+                        } else if isTooEarly {
+                            Label("Disponible en \(minutesUntilAvailable) min", systemImage: "clock")
                         } else {
                             Label(stepActionLabel, systemImage: stepActionIcon)
                         }
@@ -273,17 +385,52 @@ private struct AssignmentCard: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(Color.acoStudent)
+                    .background(isTooEarly ? Color(acoHex: "D8CFC4") : Color.acoStudent)
                     .clipShape(.rect(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
-                .disabled(isBusy)
+                .disabled(isBusy || isTooEarly)
+
+                if isTooEarly {
+                    Text("Podrás marcar \u{201C}Voy en camino\u{201D} 15 minutos antes de la cita")
+                        .font(.caption2)
+                        .foregroundStyle(Color.acoInk3)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
 
                 if assignment.statusEnum == .enCamino {
                     Text("La familia ve tu ubicación en tiempo real")
                         .font(.caption2)
                         .foregroundStyle(Color.acoInk3)
                         .frame(maxWidth: .infinity, alignment: .center)
+                }
+
+                // 3.7: solo mientras la visita siga en 'approved'
+                if assignment.statusEnum == .approved, onCancel != nil || onProposeChange != nil {
+                    HStack(spacing: 14) {
+                        if let onProposeChange {
+                            Button {
+                                onProposeChange()
+                            } label: {
+                                Label("Proponer otro horario", systemImage: "clock.arrow.2.circlepath")
+                                    .font(.caption).fontWeight(.semibold)
+                                    .foregroundStyle(Color.acoStudent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                        if let onCancel {
+                            Button {
+                                onCancel()
+                            } label: {
+                                Label("Cancelar", systemImage: "xmark.circle")
+                                    .font(.caption).fontWeight(.semibold)
+                                    .foregroundStyle(Color.acoUrgent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
         }

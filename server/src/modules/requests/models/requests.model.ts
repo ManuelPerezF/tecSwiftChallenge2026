@@ -12,6 +12,7 @@ export const createRequestBodySchema = z.object({
   // Eventos comunitarios (solo rol organizer)
   isCommunityEvent: z.boolean().optional().default(false),
   maxHelpersRequired: z.number().int().positive().optional().default(1),
+  maxElderlyAttendees: z.number().int().nonnegative().optional().default(0),
 });
 
 export type CreateRequestBody = z.infer<typeof createRequestBodySchema>;

@@ -48,7 +48,7 @@ enum TimeWindow: String, Codable, CaseIterable {
 // MARK: - RequestStatus
 
 enum RequestStatus: String, Codable {
-    case open, claimed, inProgress, completed, cancelled
+    case open, claimed, inProgress, completed, cancelled, full
 
     var label: String {
         switch self {
@@ -57,6 +57,7 @@ enum RequestStatus: String, Codable {
         case .inProgress: "En curso"
         case .completed:  "Completada"
         case .cancelled:  "Cancelada"
+        case .full:       "Lleno"
         }
     }
 }
@@ -146,6 +147,68 @@ struct APIApplication: Codable, Identifiable, Hashable, Sendable {
 
 // MARK: - Eventos comunitarios
 
+/// Tipo de evento del catálogo en BD (estándar o custom creado por organizador).
+struct EventType: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let slug: String
+    let label: String
+    let icon: String
+    let isCustom: Bool
+}
+
+// MARK: - Notificaciones in-app
+
+struct APINotification: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let type: String
+    let title: String
+    let body: String
+    let data: [String: String]
+    let read: Bool
+    let createdAt: String
+
+    /// Notificaciones que piden confirmación explícita (¿Estás disponible y cerca?)
+    var requiresConfirmation: Bool { data["requiresConfirmation"] == "true" }
+    var requestId: String? { data["requestId"] }
+}
+
+// MARK: - Organizador: becarios y bloqueos
+
+struct OrganizerStudent: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let universityName: String
+    let career: String
+    let totalHours: Double
+    let averageRating: Double
+    let tags: [String]
+    let isBlocked: Bool
+}
+
+struct StudentBlock: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let reason: String
+    let comment: String
+    let familyName: String
+    let stars: Int?
+    let active: Bool
+    let createdAt: String
+}
+
+struct OrganizerStudentDetail: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let universityName: String
+    let career: String
+    let totalHours: Double
+    let averageRating: Double
+    let tags: [String]
+    let isBlocked: Bool
+    let badges: [APIBadge]
+    let ratings: [APIRating]
+    let blocks: [StudentBlock]
+}
+
 struct EventAttendee: Codable, Identifiable, Hashable, Sendable {
     let id: String
     let userId: String
@@ -158,21 +221,23 @@ struct EventAttendee: Codable, Identifiable, Hashable, Sendable {
 
 enum AssignmentStatus: String, Codable, Sendable {
     case approved, enCamino = "en_camino", esperandoConfirmacion = "esperando_confirmacion"
-    case iniciada, completada, cancelada
+    case iniciada, esperandoConfirmacionFin = "esperando_confirmacion_fin", completada, cancelada
 
     var label: String {
         switch self {
-        case .approved:              "Aprobada"
-        case .enCamino:              "En camino"
-        case .esperandoConfirmacion: "Esperando confirmación"
-        case .iniciada:              "En curso"
-        case .completada:            "Completada"
-        case .cancelada:             "Cancelada"
+        case .approved:                 "Aprobada"
+        case .enCamino:                 "En camino"
+        case .esperandoConfirmacion:    "Esperando confirmación"
+        case .iniciada:                 "En curso"
+        case .esperandoConfirmacionFin: "Por confirmar fin"
+        case .completada:               "Completada"
+        case .cancelada:                "Cancelada"
         }
     }
 
     var isActive: Bool {
-        self == .approved || self == .enCamino || self == .esperandoConfirmacion || self == .iniciada
+        self == .approved || self == .enCamino || self == .esperandoConfirmacion
+            || self == .iniciada || self == .esperandoConfirmacionFin
     }
 }
 
@@ -363,9 +428,16 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
     let isCommunityEvent: Bool?
     let maxHelpersRequired: Int?
     let activeHelpers: Int?
+    let maxElderlyAttendees: Int?
+    let activeElderlyAttendees: Int?
 
     var isEvent: Bool { isCommunityEvent ?? false }
     var helpersLabel: String { "\(activeHelpers ?? 0)/\(maxHelpersRequired ?? 1) becarios" }
+    var elderlyQuotaLabel: String? {
+        guard let max = maxElderlyAttendees, max > 0 else { return nil }
+        return "\(activeElderlyAttendees ?? 0)/\(max) adultos mayores"
+    }
+    var isFull: Bool { status == "full" }
 
     // MARK: Computed helpers
 

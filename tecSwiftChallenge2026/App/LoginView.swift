@@ -34,6 +34,7 @@ struct LoginView: View {
 
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var isPasswordVisible = false
     @FocusState private var focusedField: Field?
 
     private enum Field { case name, email, password, career, familyName }
@@ -279,7 +280,7 @@ struct LoginView: View {
                 .padding(.bottom, 20)
 
         case .organizer:
-            labeledField("NOMBRE DE TU ORGANIZACIÓN (OPCIONAL)", placeholder: "Ej. Centro Comunitario Del Valle", text: $familyName, field: .familyName)
+            labeledField("Nombre de tu organización (opcional)", placeholder: "Ej. Centro Comunitario Del Valle", text: $familyName, field: .familyName)
         }
     }
 
@@ -315,21 +316,43 @@ struct LoginView: View {
 
     private var passwordField: some View {
         AcoFormField(label: "Contraseña") {
-            SecureField("••••••••", text: $password)
-                .font(.body)
-                .foregroundStyle(Color.acoInk)
-                .padding(.horizontal, AcoSpacing.md)
-                .padding(.vertical, 14)
-                .acoGroupedSurface()
-                .overlay {
-                    if focusedField == .password {
-                        RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
-                            .strokeBorder(Color.acoFamily, lineWidth: 2)
+            HStack(spacing: 8) {
+                Group {
+                    if isPasswordVisible {
+                        TextField("••••••••", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } else {
+                        SecureField("••••••••", text: $password)
                     }
                 }
+                .font(.body)
+                .foregroundStyle(Color.acoInk)
                 .focused($focusedField, equals: .password)
                 .submitLabel(.go)
                 .onSubmit { submit() }
+
+                Button {
+                    isPasswordVisible.toggle()
+                } label: {
+                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                        .font(.body)
+                        .foregroundStyle(Color.acoInk3)
+                        .frame(width: 44, height: 30) // target ≥44pt
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPasswordVisible ? "Ocultar contraseña" : "Mostrar contraseña")
+            }
+            .padding(.horizontal, AcoSpacing.md)
+            .padding(.vertical, 14)
+            .acoGroupedSurface()
+            .overlay {
+                if focusedField == .password {
+                    RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
+                        .strokeBorder(Color.acoFamily, lineWidth: 2)
+                }
+            }
         }
         .padding(.bottom, 20)
     }

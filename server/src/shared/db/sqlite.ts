@@ -217,6 +217,143 @@ addColumnIfMissing("activity_requests", "max_helpers_required", "INTEGER NOT NUL
 addColumnIfMissing("students", "tags", "TEXT NOT NULL DEFAULT '[]'");
 addColumnIfMissing("elderly_profiles", "tags", "TEXT NOT NULL DEFAULT '[]'");
 
+// 3.9: cupo de adultos mayores en eventos comunitarios (0 = no aplica/sin límite)
+addColumnIfMissing("activity_requests", "max_elderly_attendees", "INTEGER NOT NULL DEFAULT 0");
+// 3.6: disponibilidad declarada del becario (JSON array de TimeWindow: morning/afternoon/evening)
+addColumnIfMissing("students", "available_windows", "TEXT NOT NULL DEFAULT '[]'");
+// 3.5: bloqueo de becarios
+addColumnIfMissing("students", "is_blocked", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("ratings", "is_report", "INTEGER NOT NULL DEFAULT 0");
+// 3.12/3.16: edad + control parental
+addColumnIfMissing("elderly_profiles", "age", "INTEGER");
+addColumnIfMissing("elderly_profiles", "allow_social_connections", "INTEGER NOT NULL DEFAULT 1");
+addColumnIfMissing("elderly_profiles", "allow_self_profile_edit", "INTEGER NOT NULL DEFAULT 0");
+
+// Tablas nuevas (idempotentes)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS event_types (
+    id                      TEXT PRIMARY KEY,
+    slug                    TEXT NOT NULL UNIQUE,
+    label                   TEXT NOT NULL,
+    icon                    TEXT NOT NULL DEFAULT 'star.fill',
+    is_custom               INTEGER NOT NULL DEFAULT 0,
+    created_by_organizer_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS student_blocks (
+    id               TEXT PRIMARY KEY,
+    student_id       TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    reason           TEXT NOT NULL,
+    source_rating_id TEXT REFERENCES ratings(id) ON DELETE SET NULL,
+    source_family_id TEXT REFERENCES families(id) ON DELETE SET NULL,
+    comment          TEXT NOT NULL DEFAULT '',
+    active           INTEGER NOT NULL DEFAULT 1,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    body       TEXT NOT NULL DEFAULT '',
+    data       TEXT NOT NULL DEFAULT '{}',
+    read       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+
+  CREATE TABLE IF NOT EXISTS assignment_change_proposals (
+    id                 TEXT PRIMARY KEY,
+    assignment_id      TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    proposed_by        TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    proposed_date      TEXT NOT NULL,
+    status             TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected')),
+    created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    resolved_at        TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS elderly_matches (
+    id           TEXT PRIMARY KEY,
+    elderly_a_id TEXT NOT NULL REFERENCES elderly_profiles(id) ON DELETE CASCADE,
+    elderly_b_id TEXT NOT NULL REFERENCES elderly_profiles(id) ON DELETE CASCADE,
+    score        REAL NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(elderly_a_id, elderly_b_id)
+  );
+`);
+
+// Seed del catálogo de tipos de evento
+const eventTypeCount = db.prepare("SELECT COUNT(*) AS n FROM event_types").get() as { n: number };
+if (eventTypeCount.n === 0) {
+  const insertType = db.prepare("INSERT INTO event_types (id, slug, label, icon, is_custom) VALUES (?, ?, ?, ?, 0)");
+  const standardTypes = [
+    { slug: "mandados", label: "Mandados", icon: "cart.fill" },
+    { slug: "citas", label: "Citas médicas", icon: "car.fill" },
+    { slug: "tecnologia", label: "Ayuda digital", icon: "iphone" },
+    { slug: "hogar", label: "Tareas del hogar", icon: "house.fill" },
+    { slug: "compania", label: "Compañía", icon: "bubble.left.and.bubble.right.fill" },
+    { slug: "medicamento", label: "Medicamentos", icon: "pills.fill" },
+    { slug: "recreacion", label: "Recreación", icon: "theatermasks.fill" },
+    { slug: "taller", label: "Taller", icon: "hammer.fill" },
+    { slug: "ejercicio", label: "Ejercicio y movilidad", icon: "figure.walk" },
+    { slug: "charla", label: "Conferencia / charla", icon: "person.wave.2.fill" },
+  ];
+  for (const t of standardTypes) insertType.run(uuidv4(), t.slug, t.label, t.icon);
+}
+
+// activity_requests: agregar estado 'full' al CHECK (3.9)
+if (!tableSql("activity_requests").includes("'full'")) {
+  rebuildTable(
+    "activity_requests",
+    `CREATE TABLE activity_requests_new (
+      id                 TEXT PRIMARY KEY,
+      family_id          TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      elderly_profile_id TEXT REFERENCES elderly_profiles(id) ON DELETE SET NULL,
+      activity_type      TEXT NOT NULL,
+      details            TEXT NOT NULL DEFAULT '',
+      scheduled_date     TEXT NOT NULL,
+      is_urgent          INTEGER NOT NULL DEFAULT 0,
+      status             TEXT NOT NULL DEFAULT 'open'
+                         CHECK(status IN ('open','claimed','inProgress','completed','cancelled','full')),
+      latitude           REAL NOT NULL,
+      longitude          REAL NOT NULL,
+      published_at       TEXT NOT NULL DEFAULT (datetime('now')),
+      duration_minutes   INTEGER,
+      is_community_event INTEGER NOT NULL DEFAULT 0,
+      max_helpers_required INTEGER NOT NULL DEFAULT 1,
+      max_elderly_attendees INTEGER NOT NULL DEFAULT 0
+    )`,
+    ["CREATE INDEX IF NOT EXISTS idx_requests_status ON activity_requests(status)"],
+  );
+}
+
+// assignments: agregar 'esperando_confirmacion_fin' al CHECK (3.15)
+if (!tableSql("assignments").includes("esperando_confirmacion_fin")) {
+  rebuildTable(
+    "assignments",
+    `CREATE TABLE assignments_new (
+      id             TEXT PRIMARY KEY,
+      request_id     TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
+      application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+      student_id     TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      status         TEXT NOT NULL DEFAULT 'approved'
+                     CHECK(status IN ('approved','en_camino','iniciada','esperando_confirmacion_fin','completada','cancelada')),
+      approved_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      en_camino_at   TEXT,
+      inicio_solicitado_at TEXT,
+      checkin_at     TEXT,
+      checkout_at    TEXT,
+      hours_logged   REAL NOT NULL DEFAULT 0
+    )`,
+    [
+      "CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id)",
+      "CREATE INDEX IF NOT EXISTS idx_assignments_request ON assignments(request_id)",
+    ],
+  );
+}
+
 // ── Migraciones Lumina (rebuild de tablas con CHECK/UNIQUE cambiados; preserva datos) ──
 
 /** Reconstruye una tabla con una nueva definición, copiando todas las filas existentes. */

@@ -67,9 +67,53 @@ export const assignmentsController = {
     }
   },
 
+  confirmCompletion(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(assignmentsService.confirmCompletion(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   cancelar(req: Request, res: Response, next: NextFunction): void {
     try {
       res.json(assignmentsService.cancelar(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  cancelarPorEstudiante(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(assignmentsService.cancelByStudent(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  proposeChange(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const { scheduledDate } = req.body as { scheduledDate?: string };
+      res.status(201).json(
+        assignmentsService.proposeChange(req.auth!, req.params.id as string, scheduledDate ?? ""),
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPendingProposal(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(assignmentsService.getPendingProposal(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  respondToProposal(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const { accept } = req.body as { accept?: boolean };
+      res.json(assignmentsService.respondToProposal(req.auth!, req.params.id as string, accept === true));
     } catch (error) {
       next(error);
     }
