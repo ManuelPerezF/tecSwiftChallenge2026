@@ -122,7 +122,7 @@ struct StudentMapView: View {
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .including([
+        .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .including([
             .cafe, .hospital, .pharmacy, .park, .publicTransport
         ])))
         .mapControls { MapCompass(); MapScaleView() }
@@ -168,14 +168,26 @@ struct StudentMapView: View {
                                isActive: filterActivity == nil) {
                         withAnimation(.easeInOut(duration: 0.15)) { filterActivity = nil }
                     }
+                    .accessibilityLabel("Todas las actividades")
                     ForEach(ActivityType.allCases, id: \.self) { act in
-                        ChipButton(
-                            label: act.label.components(separatedBy: " ").first ?? act.label,
-                            tint: .acoStudent, soft: Color.white.opacity(0.95),
-                            isActive: filterActivity == act
-                        ) {
+                        Button {
                             withAnimation(.easeInOut(duration: 0.15)) { filterActivity = act }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: act.symbolName)
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(act.label.components(separatedBy: " ").first ?? act.label)
+                                    .font(.system(size: 13.5, weight: .semibold))
+                            }
+                            .foregroundStyle(filterActivity == act ? .white : Color.acoStudent)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
+                            .background(filterActivity == act ? Color.acoStudent : Color.white.opacity(0.95))
+                            .clipShape(Capsule())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(act.label)
+                        .accessibilityAddTraits(filterActivity == act ? .isSelected : [])
                     }
                 }
                 .padding(.horizontal, 1)
@@ -183,8 +195,12 @@ struct StudentMapView: View {
             .scrollIndicators(.hidden)
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
+        }
+        .shadow(color: Color.acoStudent.opacity(0.12), radius: 14, x: 0, y: 5)
     }
 }
 
@@ -251,20 +267,13 @@ private struct MapPinButton: View {
 
     var body: some View {
         Button(action: onTap) {
-            ZStack {
-                Circle()
-                    .fill(pinColor)
-                    .frame(width: isSelected ? 46 : 38, height: isSelected ? 46 : 38)
-                    .overlay { Circle().strokeBorder(Color.white, lineWidth: isSelected ? 3 : 2) }
-                Image(systemName: request.activityType.symbolName)
-                    .font(.system(size: isSelected ? 20 : 16))
-                    .foregroundStyle(.white)
-                    .accessibilityHidden(true)
-            }
-            .shadow(color: isSelected ? pinColor.opacity(0.55) : .black.opacity(0.25),
-                    radius: isSelected ? 12 : 5, y: 3)
-            .scaleEffect(isSelected ? 1.0 : 0.9)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
+            AcoMapMarker(
+                symbol: request.activityType.symbolName,
+                color: pinColor,
+                isSelected: isSelected,
+                pulse: request.isUrgent || isSelected,
+                size: isSelected ? 48 : 42
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(request.activityType.label), \(request.neighborhood), \(request.isUrgent ? "urgente" : "normal")")
@@ -336,28 +345,41 @@ private struct SelectedRequestCallout: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13)
-                        .fill(Color.acoStudentSoft).frame(width: 46, height: 46)
+                        .fill(Color.acoStudentSoft).frame(width: 48, height: 48)
                     Image(systemName: request.activityType.symbolName)
                         .font(.system(size: 22))
                         .foregroundStyle(Color.acoStudent)
                         .accessibilityHidden(true)
                 }
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(request.title).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                        Text(request.title)
+                            .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
                         if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                     }
-                    Text("\(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel) · \(request.duration)")
-                        .font(.caption).foregroundStyle(Color.acoInk2)
+                    HStack(spacing: 4) {
+                        Label(request.neighborhood, systemImage: "mappin.circle.fill")
+                            .font(.caption).foregroundStyle(Color.acoInk2)
+                        if !request.distance.isEmpty {
+                            Text("·").font(.caption).foregroundStyle(Color.acoInk3)
+                            Text(request.distance)
+                                .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk2)
+                        }
+                    }
+                    Label("\(request.timeWindow.shortLabel) · \(request.duration)", systemImage: "clock")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
                 }
                 Spacer()
-                VStack(spacing: 2) {
+                VStack(spacing: 1) {
                     Text("+\(hoursFormatted(request.hours))")
                         .font(.title3).fontWeight(.heavy).foregroundStyle(Color.acoStudent)
-                    Text("HRS").font(.caption2).fontWeight(.semibold).foregroundStyle(Color.acoInk3)
+                    Text("horas").font(.caption2).fontWeight(.semibold).foregroundStyle(Color.acoInk3)
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.timeWindow.shortLabel), \(hoursFormatted(request.hours)) horas de servicio\(request.isUrgent ? ", urgente" : "")")
+        .accessibilityHint("Toca para ver detalles")
     }
 }
 
@@ -369,27 +391,58 @@ private struct RankedRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: request.activityType.symbolName)
-                .font(.system(size: 20))
-                .foregroundStyle(Color.acoStudent)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(request.title).font(.subheadline).fontWeight(.semibold)
-                    .foregroundStyle(Color.acoInk).lineLimit(1)
-                Text("\(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel)")
-                    .font(.caption).foregroundStyle(Color.acoInk2)
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.acoStudent.opacity(0.12) : Color.acoStudentSoft)
+                    .frame(width: 40, height: 40)
+                Image(systemName: request.activityType.symbolName)
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color.acoStudent)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(request.title)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoInk).lineLimit(1)
+                    if request.isUrgent {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.acoUrgent)
+                            .accessibilityHidden(true)
+                    }
+                }
+                HStack(spacing: 3) {
+                    Text(request.neighborhood)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
+                    if !request.distance.isEmpty {
+                        Text("·").font(.caption).foregroundStyle(Color.acoInk3)
+                        Text(request.distance)
+                            .font(.caption).fontWeight(.medium).foregroundStyle(Color.acoInk2)
+                    }
+                    Text("·").font(.caption).foregroundStyle(Color.acoInk3)
+                    Text(request.timeWindow.shortLabel)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text("+\(hoursFormatted(request.hours)) h")
-                    .font(.caption).fontWeight(.bold).foregroundStyle(Color.acoStudent)
-                Text("\(request.matchScore)% match")
-                    .font(.caption2).fontWeight(.bold).foregroundStyle(Color.acoStudent)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.acoStudentSoft).clipShape(.rect(cornerRadius: 6))
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoStudent)
+                HStack(spacing: 3) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Color.acoStudent)
+                        .accessibilityHidden(true)
+                    Text("\(request.matchScore)%")
+                        .font(.caption2).fontWeight(.bold).foregroundStyle(Color.acoStudent)
+                }
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Color.acoStudentSoft).clipShape(.rect(cornerRadius: 6))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 12).padding(.vertical, 12)
+        .frame(minHeight: 64)
         .background(isSelected ? Color.acoStudentSoft : Color.white)
         .clipShape(.rect(cornerRadius: 14))
         .overlay {
@@ -397,7 +450,9 @@ private struct RankedRow: View {
                 .strokeBorder(isSelected ? Color.acoStudent : Color(acoHex: "3C3228").opacity(0.05),
                               lineWidth: isSelected ? 1.5 : 1)
         }
-        .accessibilityLabel("\(request.title), \(request.neighborhood), \(request.matchScore) por ciento")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.timeWindow.shortLabel), \(hoursFormatted(request.hours)) horas, \(request.matchScore) por ciento de compatibilidad\(request.isUrgent ? ", urgente" : "")")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

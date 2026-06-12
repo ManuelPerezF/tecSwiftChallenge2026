@@ -6,6 +6,7 @@ struct ContentView: View {
     @AppStorage("aco_userName")   private var savedName: String = ""
     @AppStorage("aco_familyCode") private var savedFamilyCode: String = ""
     @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
+    @AppStorage("aco_elderlyProfileId") private var savedElderlyProfileId: String = ""
 
     private var currentRole: AppRole? {
         guard !savedToken.isEmpty else { return nil }
@@ -44,6 +45,7 @@ struct ContentView: View {
             savedRoleRaw = ""
             savedName = ""
             savedFamilyCode = ""
+            savedElderlyProfileId = ""
             joinedFamily = false
         }
         Task {

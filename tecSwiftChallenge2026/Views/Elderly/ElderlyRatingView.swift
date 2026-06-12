@@ -4,6 +4,8 @@ struct ElderlyRatingView: View {
     let assignmentId: String
     let studentName: String
 
+    @AppStorage("aco_ratedIds") private var ratedIdsRaw: String = ""
+
     @State private var selectedStars: Int = 0
     @State private var selectedTags: Set<String> = []
     @State private var isSent: Bool = false
@@ -210,6 +212,9 @@ struct ElderlyRatingView: View {
                 stars: selectedStars,
                 tags: Array(selectedTags)
             )
+            var ids = ratedIdsRaw.isEmpty ? [] : ratedIdsRaw.split(separator: ",").map(String.init)
+            if !ids.contains(assignmentId) { ids.append(assignmentId) }
+            ratedIdsRaw = ids.joined(separator: ",")
             withAnimation(.easeInOut(duration: 0.22)) { isSent = true }
         } catch {
             submitError = error.localizedDescription

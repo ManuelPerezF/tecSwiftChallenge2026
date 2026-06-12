@@ -385,11 +385,16 @@ struct FamilyLiveVisitView: View {
                 Annotation(current.elderlyName, coordinate: CLLocationCoordinate2D(
                     latitude: current.latitude, longitude: current.longitude
                 )) {
-                    mapPin(symbol: "house.fill", color: .acoElderly)
+                    AcoMapMarker(symbol: "house.fill", color: .acoElderly, size: 46)
                 }
                 if let studentLocation {
                     Annotation(current.studentName, coordinate: studentLocation) {
-                        mapPin(symbol: "graduationcap.fill", color: .acoStudent)
+                        AcoMapMarker(
+                            symbol: "graduationcap.fill",
+                            color: .acoStudent,
+                            pulse: true,
+                            size: 46
+                        )
                     }
                 }
             }
@@ -403,17 +408,6 @@ struct FamilyLiveVisitView: View {
                      : "Conectando…")
                     .font(.caption).foregroundStyle(Color.acoInk3)
             }
-        }
-    }
-
-    private func mapPin(symbol: String, color: Color) -> some View {
-        ZStack {
-            Circle().fill(.white).frame(width: 40, height: 40)
-                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
-            Circle().strokeBorder(color, lineWidth: 2.5).frame(width: 40, height: 40)
-            Image(systemName: symbol)
-                .font(.system(size: 17))
-                .foregroundStyle(color)
         }
     }
 

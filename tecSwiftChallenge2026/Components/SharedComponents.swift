@@ -206,6 +206,109 @@ struct UniversityBadge: View {
     }
 }
 
+// MARK: - KuidarLogoView
+
+struct KuidarLogoView: View {
+    var height: CGFloat = 100
+    var maxWidth: CGFloat? = nil
+    var animate: Bool = false
+
+    @State private var breathe = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image("KuidarLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: maxWidth)
+            .frame(height: height)
+            .scaleEffect(animate && breathe && !reduceMotion ? 1.04 : 1)
+            .animation(
+                animate && !reduceMotion
+                    ? .easeInOut(duration: 2.2).repeatForever(autoreverses: true)
+                    : .default,
+                value: breathe
+            )
+            .onAppear {
+                if animate && !reduceMotion { breathe = true }
+            }
+            .accessibilityLabel("Kuidar")
+    }
+}
+
+// MARK: - AcoMapMarker
+
+struct AcoMapMarker: View {
+    let symbol: String
+    let color: Color
+    var isSelected: Bool = false
+    var pulse: Bool = false
+    var size: CGFloat = 44
+
+    @State private var ringPulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            if (pulse || isSelected) && !reduceMotion {
+                Circle()
+                    .stroke(color.opacity(0.35), lineWidth: 2)
+                    .frame(width: size * 1.45, height: size * 1.45)
+                    .scaleEffect(ringPulse ? 1.15 : 0.85)
+                    .opacity(ringPulse ? 0 : 0.7)
+                    .animation(
+                        .easeOut(duration: 1.6).repeatForever(autoreverses: false),
+                        value: ringPulse
+                    )
+                    .onAppear { ringPulse = true }
+            }
+
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white, Color(acoHex: "FAF7F2")],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: size, height: size)
+                    Circle()
+                        .strokeBorder(color, lineWidth: isSelected ? 3 : 2)
+                        .frame(width: size, height: size)
+                    Image(systemName: symbol)
+                        .font(.system(size: size * 0.38, weight: .semibold))
+                        .foregroundStyle(color)
+                }
+                PinPointer()
+                    .fill(color)
+                    .frame(width: size * 0.26, height: size * 0.16)
+                    .offset(y: -3)
+            }
+            .shadow(
+                color: color.opacity(isSelected ? 0.42 : 0.22),
+                radius: isSelected ? 14 : 7,
+                y: isSelected ? 6 : 3
+            )
+            .scaleEffect(isSelected ? 1.1 : 1)
+            .animation(.spring(response: 0.32, dampingFraction: 0.72), value: isSelected)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct PinPointer: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
+
 // MARK: - StatusRow
 struct StatusRow: View {
     let status: RequestStatus

@@ -6,12 +6,13 @@ struct LoginView: View {
     @AppStorage("aco_userRole")   private var savedRoleRaw: String = ""
     @AppStorage("aco_familyCode") private var savedFamilyCode: String = ""
     @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
+    @AppStorage("aco_elderlyProfileId") private var savedElderlyProfileId: String = ""
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var brandNamespace
-
     @State private var showSplash = true
     @State private var formVisible = false
+    @State private var splashLogoVisible = false
+    @State private var splashTaglineVisible = false
 
     @State private var isRegistering = false
 
@@ -63,10 +64,18 @@ struct LoginView: View {
         }
         .task {
             if reduceMotion {
+                splashLogoVisible = true
+                splashTaglineVisible = true
                 showSplash = false
                 formVisible = true
             } else {
-                try? await Task.sleep(for: .seconds(1.1))
+                withAnimation(.spring(response: 0.7, dampingFraction: 0.78)) {
+                    splashLogoVisible = true
+                }
+                withAnimation(.easeOut(duration: 0.5).delay(0.35)) {
+                    splashTaglineVisible = true
+                }
+                try? await Task.sleep(for: .seconds(1.35))
                 withAnimation(.spring(response: 0.65, dampingFraction: 0.85)) {
                     showSplash = false
                 }
@@ -87,37 +96,22 @@ struct LoginView: View {
         ZStack {
             brandGradient.ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                logoMark(size: 92, iconSize: 42)
-                    .matchedGeometryEffect(id: "logo", in: brandNamespace)
-
-                Text("Kuidar")
-                    .font(.system(size: 46, weight: .black))
-                    .tracking(-1.5)
-                    .foregroundStyle(.white)
-                    .matchedGeometryEffect(id: "wordmark", in: brandNamespace)
+            VStack(spacing: 22) {
+                KuidarLogoView(height: 280, maxWidth: 320, animate: true)
+                    .scaleEffect(splashLogoVisible ? 1 : 0.82)
+                    .opacity(splashLogoVisible ? 1 : 0)
 
                 Text("Cuidar es estar cerca")
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .transition(.opacity)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white.opacity(0.92))
+                    .opacity(splashTaglineVisible ? 1 : 0)
+                    .offset(y: splashTaglineVisible ? 0 : 10)
             }
+            .padding(.horizontal, 32)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Kuidar. Cuidar es estar cerca")
-    }
-
-    private func logoMark(size: CGFloat, iconSize: CGFloat) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.3)
-                .fill(.white.opacity(0.16))
-            RoundedRectangle(cornerRadius: size * 0.3)
-                .strokeBorder(.white.opacity(0.35), lineWidth: 1)
-            Image(systemName: "heart.fill")
-                .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(.white)
-        }
-        .frame(width: size, height: size)
     }
 
     // MARK: - Login
@@ -142,15 +136,11 @@ struct LoginView: View {
         ZStack(alignment: .bottomLeading) {
             brandGradient
 
-            VStack(alignment: .leading, spacing: 12) {
-                logoMark(size: 56, iconSize: 26)
-                    .matchedGeometryEffect(id: "logo", in: brandNamespace)
-
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Kuidar")
-                    .font(.system(size: 38, weight: .black))
+                    .font(.system(size: 44, weight: .black))
                     .tracking(-1.2)
                     .foregroundStyle(.white)
-                    .matchedGeometryEffect(id: "wordmark", in: brandNamespace)
 
                 Text(isRegistering
                      ? "Crea tu cuenta para empezar."
@@ -158,9 +148,10 @@ struct LoginView: View {
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.88))
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
             .padding(.top, 72)
-            .padding(.bottom, 44)
+            .padding(.bottom, 40)
         }
         .clipShape(UnevenRoundedRectangle(
             bottomLeadingRadius: 32, bottomTrailingRadius: 32
@@ -467,6 +458,7 @@ struct LoginView: View {
                 }
                 savedFamilyCode = response.profile.familyCode ?? ""
                 joinedFamily = response.profile.joinedFamily ?? (role != .elderly)
+                savedElderlyProfileId = response.profile.elderlyProfileId ?? ""
                 savedToken = response.token
                 savedName = response.user.name
                 savedRoleRaw = role.rawValue
