@@ -40,7 +40,7 @@ studentsRouter.put("/me/tags", requireRole("student"), (req, res, next) => {
   }
 });
 
-studentsRouter.get("/:id", (req, res, next) => {
+function fetchStudentById(id: string, res: import("express").Response, next: import("express").NextFunction) {
   try {
     const row = db.prepare(`
       SELECT s.id, s.career, s.total_hours, s.average_rating, s.tags,
@@ -49,7 +49,7 @@ studentsRouter.get("/:id", (req, res, next) => {
       JOIN users u ON s.user_id = u.id
       LEFT JOIN universities un ON s.university_id = un.id
       WHERE s.id = ?
-    `).get(req.params.id as string) as {
+    `).get(id) as {
       id: string; career: string; total_hours: number; average_rating: number; tags: string;
       name: string; university_name: string | null;
     } | undefined;
@@ -70,6 +70,17 @@ studentsRouter.get("/:id", (req, res, next) => {
   } catch (error) {
     next(error);
   }
+}
+
+// Own profile (student role)
+studentsRouter.get("/me", (req, res, next) => {
+  const studentId = req.auth?.studentId;
+  if (!studentId) { res.status(403).json({ error: "No eres un becario" }); return; }
+  fetchStudentById(studentId, res, next);
+});
+
+studentsRouter.get("/:id", (req, res, next) => {
+  fetchStudentById(req.params.id as string, res, next);
 });
 
 studentsRouter.get("/:id/ratings", ratingsController.listForStudent);

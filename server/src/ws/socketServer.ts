@@ -22,6 +22,19 @@ interface IncomingMessage {
   lng?: number;
 }
 
+/** Tipo de mensaje normalizado de chat (espejo del normalize() en messages.service) */
+interface NormalizedMessage {
+  id: string;
+  fromUserId: string;
+  fromName: string;
+  toStudentId: string;
+  toUserId: string | null;
+  body: string;
+  assignmentId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 interface AssignmentAccessRow {
   id: string;
   student_id: string;
@@ -82,6 +95,35 @@ export function broadcastLocation(assignmentId: string): void {
   const payload = locationsPayload(assignmentId);
   for (const [ws, state] of clients) {
     if (state.subscribedAssignments.has(assignmentId)) {
+      send(ws, payload);
+    }
+  }
+}
+
+/**
+ * Envía un mensaje de chat en tiempo real a todos los clientes WS involucrados.
+ * senderFamilyId: set cuando la familia envía al estudiante.
+ * recipientUserId: set cuando el estudiante responde a un usuario familiar.
+ */
+export function broadcastChatMessage(
+  message: NormalizedMessage,
+  senderFamilyId?: string,
+  recipientUserId?: string,
+): void {
+  const payload = { type: "chat:message", message };
+
+  for (const [ws, state] of clients) {
+    const { auth } = state;
+    // Recipient student
+    const isStudent = auth.studentId === message.toStudentId;
+    // Family sender sees it on other devices / family recipient of student reply
+    const isFamilyInvolved =
+      (senderFamilyId && auth.familyId === senderFamilyId) ||
+      (recipientUserId && auth.id === recipientUserId);
+    // Student sender sees own message
+    const isSelf = auth.id === message.fromUserId;
+
+    if (isStudent || isFamilyInvolved || isSelf) {
       send(ws, payload);
     }
   }

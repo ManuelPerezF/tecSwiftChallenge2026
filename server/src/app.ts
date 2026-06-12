@@ -5,6 +5,7 @@ import { applicationsRouter } from "./modules/applications/routes/applications.r
 import { assignmentsRouter } from "./modules/assignments/routes/assignments.routes.js";
 import { authRouter } from "./modules/auth/routes/auth.routes.js";
 import { familiesRouter } from "./modules/families/routes/families.routes.js";
+import { messagesRouter } from "./modules/messages/routes/messages.routes.js";
 import { requestsRouter } from "./modules/requests/routes/requests.routes.js";
 import { studentsRouter } from "./modules/students/routes/students.routes.js";
 import { universitiesRouter } from "./modules/universities/routes/universities.routes.js";
@@ -25,6 +26,7 @@ app.use("/api/requests", requestsRouter);
 app.use("/api/applications", applicationsRouter);
 app.use("/api/assignments", assignmentsRouter);
 app.use("/api/students", studentsRouter);
+app.use("/api/messages", messagesRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", app: "Kuidar" });

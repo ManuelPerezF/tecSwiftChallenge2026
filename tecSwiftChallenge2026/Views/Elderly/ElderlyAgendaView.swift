@@ -9,11 +9,12 @@ struct ElderlyAgendaView: View {
     @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
     @AppStorage("aco_userName") private var userName: String = ""
 
+    @AppStorage("aco_ratedIds") private var ratedIdsRaw: String = ""
+
     @State private var assignments: [APIAssignment] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var confirmingId: String?
-    // confirmingId kept for confirmStartBanner only
 
     var body: some View {
         ZStack {
@@ -23,7 +24,7 @@ struct ElderlyAgendaView: View {
                 notLinkedState
             } else if isLoading && assignments.isEmpty {
                 ProgressView("Cargando…").tint(Color.acoElderly)
-            } else if upcoming.isEmpty {
+            } else if upcoming.isEmpty && pendingRating.isEmpty {
                 emptyState
             } else {
                 agenda
@@ -42,21 +43,23 @@ struct ElderlyAgendaView: View {
     }
 
     private var notLinkedState: some View {
-        VStack(spacing: 24) {
-            ZStack {
-                Circle().fill(Color.acoElderlySoft).frame(width: 110, height: 110)
-                Text("🔗").font(.system(size: 48)).accessibilityHidden(true)
-            }
+        VStack(spacing: 28) {
+            Image(systemName: "link.circle")
+                .font(.system(size: 56))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.acoElderly)
+                .accessibilityHidden(true)
             Text("Aún no estás vinculado")
-                .font(.title2).bold().foregroundStyle(Color.acoInk)
+                .font(.title).bold().foregroundStyle(Color.acoInk)
             Text("Ve a la pestaña **Mi familia** e ingresa el código que te compartió tu familiar.")
-                .font(.title3).foregroundStyle(Color.acoInk3)
+                .font(.title3).foregroundStyle(Color.acoInk2)
                 .multilineTextAlignment(.center)
+                .lineSpacing(4)
                 .padding(.horizontal, 32)
-            CTAButton(label: "Ir a Mi familia", tint: .acoElderly) {
+            CTAButton(label: "Ir a Mi familia", tint: .acoElderly, big: true) {
                 onGoToFamily()
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, 32)
         }
     }
 
@@ -72,6 +75,11 @@ struct ElderlyAgendaView: View {
 
     private var upcoming: [APIAssignment] {
         assignments.filter { $0.statusEnum.isActive }
+    }
+
+    private var pendingRating: [APIAssignment] {
+        let rated = Set(ratedIdsRaw.split(separator: ",").map(String.init))
+        return assignments.filter { $0.statusEnum == .completada && !rated.contains($0.id) }
     }
 
     private var activeVisit: APIAssignment? {
@@ -113,11 +121,58 @@ struct ElderlyAgendaView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                if !pendingRating.isEmpty {
+                    AcoTypography.sectionHeader("Calificar visita")
+                        .padding(.top, 6)
+
+                    ForEach(pendingRating) { visit in
+                        NavigationLink(value: ElderlyDestination.rating(
+                            assignmentId: visit.id,
+                            studentName: visit.studentName
+                        )) {
+                            ratingPromptCard(visit)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Calificar a \(visit.studentName)")
+                    }
+                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 60)
         }
         .scrollIndicators(.hidden)
+    }
+
+    private func ratingPromptCard(_ visit: APIAssignment) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.acoStar.opacity(0.13))
+                    .frame(width: 60, height: 60)
+                Image(systemName: "star.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.acoStar)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("¿Cómo te trató?")
+                    .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                Text(visit.studentName)
+                    .font(.body).foregroundStyle(Color.acoInk2)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.acoInk3)
+        }
+        .padding(18)
+        .background(Color.acoStar.opacity(0.07))
+        .clipShape(.rect(cornerRadius: 20))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20)
+                .strokeBorder(Color.acoStar.opacity(0.28), lineWidth: 1.5)
+        }
     }
 
     private func activeVisitBanner(_ visit: APIAssignment) -> some View {
@@ -198,16 +253,18 @@ struct ElderlyAgendaView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle().fill(Color.acoElderlySoft).frame(width: 110, height: 110)
-                Text("🗓️").font(.system(size: 48)).accessibilityHidden(true)
-            }
+        VStack(spacing: 24) {
+            Image(systemName: "calendar")
+                .font(.system(size: 52))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.acoElderly)
+                .accessibilityHidden(true)
             Text("Sin visitas programadas")
-                .font(.title2).bold().foregroundStyle(Color.acoInk)
+                .font(.title).bold().foregroundStyle(Color.acoInk)
             Text("Cuando tu familia agende una visita\naparecerá aquí.")
-                .font(.title3).foregroundStyle(Color.acoInk3)
+                .font(.title3).foregroundStyle(Color.acoInk2)
                 .multilineTextAlignment(.center)
+                .lineSpacing(4)
         }
         .padding(.horizontal, 32)
     }
@@ -232,28 +289,28 @@ private struct ElderlyVisitCard: View {
     var onConfirmStart: (() -> Void)?
 
     var body: some View {
-        AcoCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
+        AcoCard(padding: 20) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 14) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(Color.acoElderlySoft)
-                            .frame(width: 56, height: 56)
+                            .frame(width: 64, height: 64)
                         Image(systemName: visit.activityTypeEnum.symbolName)
-                            .font(.system(size: 26))
+                            .font(.system(size: 30))
                             .foregroundStyle(Color.acoElderly)
                             .accessibilityHidden(true)
                     }
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(visit.activityTypeEnum.label)
-                            .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                            .font(.title2).fontWeight(.bold).foregroundStyle(Color.acoInk)
                         Text(visit.studentName)
-                            .font(.body).foregroundStyle(Color.acoInk2)
+                            .font(.title3).foregroundStyle(Color.acoInk2)
                     }
                 }
 
                 Label(scheduledLabel, systemImage: "calendar")
-                    .font(.body).foregroundStyle(Color.acoInk2)
+                    .font(.title3).foregroundStyle(Color.acoInk2)
 
                 if let onConfirmStart {
                     Button(action: onConfirmStart) {
@@ -264,12 +321,12 @@ private struct ElderlyVisitCard: View {
                                 Label("Confirmar inicio", systemImage: "checkmark.circle.fill")
                             }
                         }
-                        .font(.headline)
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 16)
                         .background(Color.acoElderly)
-                        .clipShape(.rect(cornerRadius: 12))
+                        .clipShape(.rect(cornerRadius: 14))
                     }
                     .buttonStyle(.plain)
                     .disabled(isConfirming)
@@ -328,11 +385,16 @@ struct ElderlyLiveMapView: View {
                 Annotation("Tu casa", coordinate: CLLocationCoordinate2D(
                     latitude: assignment.latitude, longitude: assignment.longitude
                 )) {
-                    mapPin(symbol: "house.fill", color: .acoElderly)
+                    AcoMapMarker(symbol: "house.fill", color: .acoElderly, size: 48)
                 }
                 if let studentLocation {
                     Annotation(assignment.studentName, coordinate: studentLocation) {
-                        mapPin(symbol: "graduationcap.fill", color: .acoStudent)
+                        AcoMapMarker(
+                            symbol: "graduationcap.fill",
+                            color: .acoStudent,
+                            pulse: true,
+                            size: 48
+                        )
                     }
                 }
             }
@@ -405,17 +467,6 @@ struct ElderlyLiveMapView: View {
             withAnimation(.easeInOut(duration: 0.22)) { status = updated.statusEnum }
         } catch { /* silencioso en mapa; agenda muestra errores */ }
         isConfirming = false
-    }
-
-    private func mapPin(symbol: String, color: Color) -> some View {
-        ZStack {
-            Circle().fill(.white).frame(width: 48, height: 48)
-                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
-            Circle().strokeBorder(color, lineWidth: 3).frame(width: 48, height: 48)
-            Image(systemName: symbol)
-                .font(.system(size: 20))
-                .foregroundStyle(color)
-        }
     }
 
     private func startLive() {

@@ -13,6 +13,7 @@ struct FamilyPublishView: View {
     }()
     @State private var selectedDurationMinutes: Int? = nil
     @State private var isUrgent: Bool = false
+    @State private var isSuggestingDescription: Bool = false
     @State private var descriptionText: String = ""
     @State private var isPublished: Bool = false
     @State private var isLoading: Bool = false
@@ -196,6 +197,31 @@ struct FamilyPublishView: View {
                 }
                 .padding(.horizontal, 20)
 
+                // Sugerencia de descripción con Apple Intelligence (si está disponible)
+                if FoundationModelClient.shared.isAvailable {
+                    Button {
+                        Task { await suggestDescription() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isSuggestingDescription {
+                                ProgressView().scaleEffect(0.75).tint(Color.acoFamily)
+                            } else {
+                                Image(systemName: "text.badge.plus").font(.subheadline)
+                            }
+                            Text(isSuggestingDescription ? "Generando…" : "Sugerir descripción")
+                                .font(.subheadline).fontWeight(.medium)
+                        }
+                        .foregroundStyle(Color.acoFamily)
+                        .padding(.horizontal, 14).padding(.vertical, 9)
+                        .background(Color.acoFamilySoft)
+                        .clipShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSuggestingDescription)
+                    .padding(.horizontal, 20).padding(.top, 8)
+                    .accessibilityLabel("Sugerir descripción usando inteligencia artificial")
+                }
+
                 // Fecha y hora
                 fieldLabel("¿Cuándo?").padding(.horizontal, 20).padding(.top, 22)
                 VStack(spacing: 0) {
@@ -219,38 +245,8 @@ struct FamilyPublishView: View {
                 // Duración
                 fieldLabel("¿Cuánto tiempo aproximadamente?")
                     .padding(.horizontal, 20).padding(.top, 22)
-                let durations: [(Int, String)] = [
-                    (30, "30 min"), (45, "45 min"), (60, "1 h"),
-                    (90, "1.5 h"), (120, "2 h"), (180, "3 h")
-                ]
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(durations, id: \.0) { minutes, label in
-                            let isSelected = selectedDurationMinutes == minutes
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    selectedDurationMinutes = isSelected ? nil : minutes
-                                }
-                            } label: {
-                                Text(label)
-                                    .font(.subheadline).fontWeight(.semibold)
-                                    .foregroundStyle(isSelected ? Color.acoFamily : Color.acoInk2)
-                                    .padding(.horizontal, 16).padding(.vertical, 10)
-                                    .background(isSelected ? Color.acoFamilySoft : Color(acoHex: "FDFBF8"))
-                                    .clipShape(.capsule)
-                                    .overlay {
-                                        Capsule().strokeBorder(
-                                            isSelected ? Color.acoFamily : Color(acoHex: "3C3228").opacity(0.10),
-                                            lineWidth: isSelected ? 2 : 1
-                                        )
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(isSelected ? .isSelected : [])
-                        }
-                    }
+                DurationStepperRow(selectedMinutes: $selectedDurationMinutes)
                     .padding(.horizontal, 20)
-                }
 
                 // Urgencia
                 Button {
@@ -342,6 +338,17 @@ struct FamilyPublishView: View {
         }
     }
 
+    private func suggestDescription() async {
+        isSuggestingDescription = true
+        if let suggestion = try? await FoundationModelClient.shared.suggestDescription(
+            activityType: selectedActivity,
+            notes: descriptionText
+        ) {
+            descriptionText = suggestion
+        }
+        isSuggestingDescription = false
+    }
+
     private func resetForm() {
         isPublished = false
         descriptionText = ""
@@ -353,10 +360,100 @@ struct FamilyPublishView: View {
     }
 
     private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption).bold().textCase(.uppercase)
-            .tracking(0.4).foregroundStyle(Color.acoFamily)
-            .padding(.bottom, 10)
+        AcoTypography.sectionHeader(text)
+            .foregroundStyle(Color.acoFamily)
+    }
+}
+
+// MARK: - Duration stepper
+
+private struct DurationStepperRow: View {
+    @Binding var selectedMinutes: Int?
+
+    private let step = 15
+    private let minVal = 15
+    private let maxVal = 300
+
+    private func formattedLabel(_ mins: Int) -> String {
+        if mins < 60 { return "\(mins) min" }
+        let h = mins / 60
+        let m = mins % 60
+        return m == 0 ? "\(h) h" : "\(h) h \(m) min"
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Label side
+            VStack(alignment: .leading, spacing: 2) {
+                if let mins = selectedMinutes {
+                    Text(formattedLabel(mins))
+                        .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoFamily)
+                        .contentTransition(.numericText())
+                        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: mins)
+                    Text("aproximadamente")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+                } else {
+                    Text("Sin especificar")
+                        .font(.subheadline).foregroundStyle(Color.acoInk2)
+                    Text("El becario sabrá por el tipo de actividad")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Controls
+            HStack(spacing: 2) {
+                // Minus
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                        let current = selectedMinutes ?? (minVal + step)
+                        let next = current - step
+                        selectedMinutes = next < minVal ? nil : next
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(selectedMinutes == nil || selectedMinutes! <= minVal
+                            ? Color.acoInk3 : Color.acoFamily)
+                        .frame(width: 36, height: 36)
+                        .background(Color(acoHex: "EDEBE7"))
+                        .clipShape(.rect(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedMinutes == nil)
+                .accessibilityLabel("Reducir duración")
+
+                // Plus
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                        let current = selectedMinutes ?? (minVal - step)
+                        let next = current + step
+                        selectedMinutes = min(maxVal, next)
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(selectedMinutes == maxVal ? Color.acoInk3 : Color.white)
+                        .frame(width: 36, height: 36)
+                        .background(selectedMinutes == maxVal ? Color(acoHex: "EDEBE7") : Color.acoFamily)
+                        .clipShape(.rect(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedMinutes == maxVal)
+                .accessibilityLabel("Aumentar duración")
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 14)
+        .background(Color(acoHex: "FDFBF8"))
+        .clipShape(.rect(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(
+                    selectedMinutes != nil ? Color.acoFamily.opacity(0.3) : Color(acoHex: "3C3228").opacity(0.10),
+                    lineWidth: selectedMinutes != nil ? 1.5 : 1
+                )
+        }
+        .animation(.easeInOut(duration: 0.15), value: selectedMinutes != nil)
     }
 }
 

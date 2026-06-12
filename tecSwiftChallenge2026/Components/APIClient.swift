@@ -238,6 +238,39 @@ final class APIClient {
         return try decoder.decode(TagsResponse.self, from: data).tags
     }
 
+    func fetchMyStudentProfile() async throws -> StudentProfile {
+        try await get(path: "students/me")
+    }
+
+    // MARK: - Mensajería
+
+    func sendMessage(toStudentId: String, body: String, assignmentId: String? = nil) async throws -> APIMessage {
+        var payload: [String: Any] = ["toStudentId": toStudentId, "body": body]
+        if let aid = assignmentId { payload["assignmentId"] = aid }
+        return try await post(path: "messages", body: payload)
+    }
+
+    func fetchInbox() async throws -> [APIMessage] {
+        try await get(path: "messages/mine")
+    }
+
+    func fetchConversations() async throws -> [APIConversation] {
+        try await get(path: "messages/conversations")
+    }
+
+    func fetchThread(otherId: String) async throws -> [APIMessage] {
+        try await get(path: "messages/thread/\(otherId)")
+    }
+
+    func replyMessage(toUserId: String, body: String) async throws -> APIMessage {
+        try await post(path: "messages/reply", body: ["toUserId": toUserId, "body": body])
+    }
+
+    func fetchUnreadCount() async throws -> Int {
+        let result: [String: Int] = try await get(path: "messages/unread-count")
+        return result["count"] ?? 0
+    }
+
     // MARK: - Private helpers
 
     private func request(path: String, method: String) -> URLRequest {

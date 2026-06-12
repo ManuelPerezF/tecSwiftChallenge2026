@@ -6,6 +6,7 @@ struct FamilyStudentProfileView: View {
     @State private var profile: StudentProfile?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showChat = false
 
     var body: some View {
         ZStack {
@@ -32,6 +33,14 @@ struct FamilyStudentProfileView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
+        .navigationDestination(isPresented: $showChat) {
+            ChatThreadView(
+                title: profile?.name ?? "Becario",
+                otherId: studentId,
+                tint: .acoFamily,
+                isFamily: true
+            )
+        }
     }
 
     @ViewBuilder
@@ -115,7 +124,9 @@ struct FamilyStudentProfileView: View {
                 }
 
                 VStack(spacing: 10) {
-                    CTAButton(label: "Enviar mensaje", leadingSymbol: "bubble.left.fill", tint: .acoFamily) {}
+                    CTAButton(label: "Enviar mensaje", leadingSymbol: "bubble.left.fill", tint: .acoFamily) {
+                        showChat = true
+                    }
                     HStack(spacing: 6) {
                         Image(systemName: "lock.fill")
                             .font(.caption2)

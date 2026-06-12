@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum FamilyTab: Hashable {
-    case publish, dashboard, family, events
+    case publish, dashboard, messages, family, events
 }
 
 struct FamilyRootView: View {
@@ -29,6 +29,20 @@ struct FamilyRootView: View {
                         .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }
             }
+            Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: FamilyTab.messages) {
+                NavigationStack {
+                    FamilyConversationsView()
+                        .navigationDestination(for: APIConversation.self) { conv in
+                            ChatThreadView(
+                                title: conv.studentName,
+                                otherId: conv.studentId,
+                                tint: .acoFamily,
+                                isFamily: true
+                            )
+                        }
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                }
+            }
             Tab("Eventos", systemImage: "person.3.fill", value: FamilyTab.events) {
                 NavigationStack {
                     CommunityEventsView(isOrganizer: false)
@@ -46,9 +60,17 @@ struct FamilyRootView: View {
     }
 
     private var logoutButton: some View {
-        Button("Cerrar sesión", action: onLogout)
-            .font(.caption)
-            .foregroundStyle(Color.acoInk3)
+        Menu {
+            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                onLogout()
+            }
+        } label: {
+            Image(systemName: "person.circle")
+                .symbolRenderingMode(.hierarchical)
+                .font(.title3)
+                .foregroundStyle(Color.acoInk2)
+        }
+        .accessibilityLabel("Cuenta")
     }
 }
 

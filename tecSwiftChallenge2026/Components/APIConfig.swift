@@ -2,6 +2,10 @@ import Foundation
 
 /// Host del backend Kuidar según dónde corre la app.
 enum APIConfig {
+    /// IP LAN del Mac en desarrollo. Actualízala con `ipconfig getifaddr en0`
+    /// o la línea «Red local» al correr `npm run dev`.
+    private static let devLANHost = "192.168.1.222"
+
     private static func plistString(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,
               !value.isEmpty else { return nil }
@@ -19,9 +23,8 @@ enum APIConfig {
         #if targetEnvironment(simulator)
         plistString("KUIDAR_API_HOST") ?? "localhost"
         #else
-        let override = UserDefaults.standard.string(forKey: "aco_apiHost") ?? ""
-        if !override.isEmpty { return override }
-        return plistString("KUIDAR_API_HOST") ?? ""
+        if let plist = plistString("KUIDAR_API_HOST") { return plist }
+        return devLANHost
         #endif
     }
 

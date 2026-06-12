@@ -2,6 +2,10 @@ import Foundation
 
 // MARK: - Mensajes del servidor
 
+struct WSChatMessage: Codable, Sendable {
+    let message: APIMessage
+}
+
 struct WSLocationBroadcast: Codable, Sendable {
     struct Point: Codable, Sendable {
         let lat: Double
@@ -34,11 +38,14 @@ struct WSAssignmentStatus: Codable, Sendable {
 @Observable
 final class WebSocketClient {
 
+    static let shared = WebSocketClient()
+
     private(set) var isConnected = false
     var onLocation: ((WSLocationBroadcast) -> Void)?
     var onStatus: ((WSAssignmentStatus) -> Void)?
     /// Se dispara cuando un request se reabre (cancelación del becario). Param: requestId.
     var onRequestReopened: ((String) -> Void)?
+    var onChatMessage: ((APIMessage) -> Void)?
 
     private var task: URLSessionWebSocketTask?
     private var subscribed: Set<String> = []
@@ -148,6 +155,10 @@ final class WebSocketClient {
         case "request:reopened":
             if let requestId = envelope["requestId"] as? String {
                 onRequestReopened?(requestId)
+            }
+        case "chat:message":
+            if let payload = try? decoder.decode(WSChatMessage.self, from: data) {
+                onChatMessage?(payload.message)
             }
         default:
             break

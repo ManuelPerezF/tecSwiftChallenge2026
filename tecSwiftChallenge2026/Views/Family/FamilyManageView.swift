@@ -111,7 +111,7 @@ struct FamilyManageView: View {
 
     private var howItWorks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("CÓMO FUNCIONA")
+            SectionLabel(text: "Cómo funciona")
 
             instructionRow(number: "1", text: "Comparte el código con tu familiar adulto mayor.")
             instructionRow(number: "2", text: "En su app, entra a **Mi familia** y escribe el código.")
@@ -121,7 +121,7 @@ struct FamilyManageView: View {
 
     private var elderlySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("ADULTOS MAYORES VINCULADOS")
+            SectionLabel(text: "Adultos mayores vinculados")
 
             if let elderly = family?.elderly, !elderly.isEmpty {
                 ForEach(elderly) { person in
@@ -130,7 +130,10 @@ struct FamilyManageView: View {
             } else {
                 AcoCard {
                     VStack(spacing: 10) {
-                        Text("🧓").font(.system(size: 36)).accessibilityHidden(true)
+                        Image(systemName: "figure.stand")
+                            .font(.system(size: 32))
+                            .foregroundStyle(Color.acoElderly)
+                            .accessibilityHidden(true)
                         Text("Nadie vinculado aún")
                             .font(.headline).foregroundStyle(Color.acoInk)
                         Text("Comparte tu código para que un adulto mayor se una a tu familia.")
@@ -189,13 +192,6 @@ struct FamilyManageView: View {
             .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.8)
-            .foregroundStyle(Color.acoInk3)
     }
 
     private func errorState(_ message: String) -> some View {

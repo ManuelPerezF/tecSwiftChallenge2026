@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum StudentTab: Hashable {
-    case map, commitments, hours
+    case map, commitments, hours, inbox
 }
 
 struct StudentRootView: View {
@@ -43,14 +43,32 @@ struct StudentRootView: View {
                         }
                 }
             }
+            Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: StudentTab.inbox) {
+                NavigationStack {
+                    StudentInboxView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                logoutButton
+                            }
+                        }
+                }
+            }
         }
         .tint(.acoStudent)
     }
 
     private var logoutButton: some View {
-        Button("Cerrar sesión", action: onLogout)
-            .font(.caption)
-            .foregroundStyle(Color.acoInk3)
+        Menu {
+            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                onLogout()
+            }
+        } label: {
+            Image(systemName: "person.circle")
+                .symbolRenderingMode(.hierarchical)
+                .font(.title3)
+                .foregroundStyle(Color.acoInk2)
+        }
+        .accessibilityLabel("Cuenta")
     }
 }
 

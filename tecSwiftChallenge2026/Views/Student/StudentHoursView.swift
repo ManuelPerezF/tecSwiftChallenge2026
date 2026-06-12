@@ -2,11 +2,12 @@ import SwiftUI
 
 struct StudentHoursView: View {
     @AppStorage("student_goal_hours") private var goalHours: Int = 0
-    @AppStorage("aco_authToken") private var authToken: String = ""
+    @AppStorage("aco_studentId") private var studentId: String = ""
 
     @AppStorage("aco_studentTags") private var savedTags: String = ""
 
     @State private var assignments: [APIAssignment] = []
+    @State private var studentProfile: StudentProfile? = nil
     @State private var isLoading = false
     @State private var showGoalSheet = false
     @State private var goalInput: String = ""
@@ -59,6 +60,10 @@ struct StudentHoursView: View {
 
                         SectionLabel(text: "Mis intereses").padding(.top, 22)
                         tagsCard
+
+                        if let profile = studentProfile {
+                            reputationSection(profile)
+                        }
 
                         Spacer().frame(height: 100)
                     }
@@ -319,13 +324,45 @@ struct StudentHoursView: View {
         .presentationDetents([.medium])
     }
 
+    // MARK: - Reputation
+
+    @ViewBuilder
+    private func reputationSection(_ profile: StudentProfile) -> some View {
+        if !profile.badges.isEmpty {
+            SectionLabel(text: "Insignias").padding(.top, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(profile.badges) { badge in
+                        BadgeCard(badge: badge)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+
+        if !profile.ratings.isEmpty {
+            SectionLabel(text: "Calificaciones recibidas").padding(.top, 22)
+            AcoCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(profile.ratings.enumerated()), id: \.element.id) { index, rating in
+                        RatingRow(rating: rating)
+                        if index < profile.ratings.count - 1 {
+                            Divider().padding(.vertical, 8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func load() async {
         isLoading = true
-        if let loaded = try? await APIClient.shared.fetchMyAssignments() {
-            assignments = loaded
-        }
+        async let assignmentsTask = APIClient.shared.fetchMyAssignments()
+        async let profileTask = APIClient.shared.fetchMyStudentProfile()
+        assignments = (try? await assignmentsTask) ?? []
+        studentProfile = try? await profileTask
         isLoading = false
     }
 

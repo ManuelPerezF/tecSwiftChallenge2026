@@ -9,12 +9,11 @@ struct FamilyDashboardView: View {
     @State private var errorMessage: String? = nil
 
     var body: some View {
-        ZStack {
-            Color.acoBg.ignoresSafeArea()
-
+        Group {
             if isLoading && requests.isEmpty {
                 ProgressView("Cargando…")
                     .tint(Color.acoFamily)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let err = errorMessage, requests.isEmpty {
                 serverError(err)
             } else if requests.isEmpty {
@@ -23,6 +22,7 @@ struct FamilyDashboardView: View {
                 list
             }
         }
+        .acoScreenBackground()
         .navigationTitle("Mis solicitudes")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -62,48 +62,34 @@ struct FamilyDashboardView: View {
     // MARK: - Subviews
 
     private var list: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(requests) { req in
-                    if let asg = assignment(for: req) {
-                        NavigationLink(value: asg) {
-                            LiveRequestCard(request: req, assignment: asg)
-                        }
-                        .buttonStyle(.plain)
-                    } else if req.statusEnum == .open {
-                        NavigationLink(value: req) {
-                            LiveRequestCard(request: req, assignment: nil)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        LiveRequestCard(request: req, assignment: nil)
+        List {
+            ForEach(requests) { req in
+                if let asg = assignment(for: req) {
+                    NavigationLink(value: asg) {
+                        LiveRequestRow(request: req, assignment: asg)
                     }
+                } else if req.statusEnum == .open {
+                    NavigationLink(value: req) {
+                        LiveRequestRow(request: req, assignment: nil)
+                    }
+                } else {
+                    LiveRequestRow(request: req, assignment: nil)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 100)
         }
-        .scrollIndicators(.hidden)
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
-            ZStack {
-                Circle().fill(Color.acoFamilySoft).frame(width: 96, height: 96)
-                Image(systemName: "heart.text.clipboard")
-                    .font(.system(size: 38)).foregroundStyle(Color.acoFamily)
-            }
-            Text("Sin solicitudes aún")
-                .font(.title3).bold().foregroundStyle(Color.acoInk)
-            Text("Publica tu primera solicitud\npara conectar con un becario.")
-                .font(.body).foregroundStyle(Color.acoInk3)
-                .multilineTextAlignment(.center)
-            CTAButton(label: "Publicar solicitud", leadingSymbol: "plus", tint: .acoFamily) {
-                onAddTapped()
-            }
-            .padding(.horizontal, 40)
-        }
-        .padding(.horizontal, 32)
+        AcoEmptyState(
+            symbol: "heart.text.clipboard",
+            title: "Sin solicitudes aún",
+            message: "Publica tu primera solicitud para conectar con un becario.",
+            tint: .acoFamily,
+            actionLabel: "Publicar solicitud",
+            action: onAddTapped
+        )
     }
 
     private func serverError(_ message: String) -> some View {
@@ -122,58 +108,61 @@ struct FamilyDashboardView: View {
     }
 }
 
-// MARK: - Card de solicitud real
+// MARK: - Fila de solicitud
 
-private struct LiveRequestCard: View {
+private struct LiveRequestRow: View {
     let request: APIRequest
     let assignment: APIAssignment?
 
     var body: some View {
-        AcoCard(padding: 0) {
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 13) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.acoFamilySoft).frame(width: 48, height: 48)
-                        Image(systemName: request.activityTypeEnum.symbolName)
-                            .font(.system(size: 22))
-                            .foregroundStyle(Color.acoFamily)
-                            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: AcoSpacing.xs) {
+            HStack(spacing: 12) {
+                Image(systemName: request.activityTypeEnum.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(Color.acoFamily)
+                    .frame(width: 32)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(request.activityTypeEnum.label)
+                            .font(.headline)
+                            .foregroundStyle(Color.acoInk)
+                        if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                     }
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 7) {
-                            Text(request.activityTypeEnum.label)
-                                .font(.headline).foregroundStyle(Color.acoInk)
-                            if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
-                        }
-                        if request.elderlyName != "Tu familiar" {
-                            Label(request.elderlyName, systemImage: "person.fill")
-                                .font(.subheadline).foregroundStyle(Color.acoInk2)
-                        }
-                        Label(request.scheduledDateFormatted, systemImage: "calendar")
-                            .font(.subheadline).foregroundStyle(Color.acoInk2)
-                        if let assignment {
-                            Label("Becario: \(assignment.studentName) · \(assignment.statusEnum.label)", systemImage: "graduationcap.fill")
-                                .font(.subheadline).foregroundStyle(Color.acoStudent)
-                        } else if request.statusEnum == .open {
-                            Label("Ver postulantes", systemImage: "person.2.fill")
-                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoFamily)
-                        }
-                        StatusRow(status: request.statusEnum, eta: nil).padding(.top, 4)
+                    if request.elderlyName != "Tu familiar" {
+                        Text(request.elderlyName)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.acoInk2)
                     }
-                }
-                .padding(14)
-
-                if !request.details.isEmpty && request.details != "Ayuda con \(request.activityTypeEnum.label.lowercased())." {
-                    Rectangle().fill(Color.acoHair).frame(height: 1)
-                    Text(request.details)
-                        .font(.caption).foregroundStyle(Color.acoInk2).lineLimit(2)
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(acoHex: "F8F5F1"))
                 }
             }
+
+            Label(request.scheduledDateFormatted, systemImage: "calendar")
+                .font(.subheadline)
+                .foregroundStyle(Color.acoInk2)
+
+            if let assignment {
+                Label("\(assignment.studentName) · \(assignment.statusEnum.label)", systemImage: "graduationcap")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.acoStudent)
+            } else if request.statusEnum == .open {
+                Text("Ver postulantes")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.acoFamily)
+            }
+
+            StatusRow(status: request.statusEnum, eta: nil)
+
+            if !request.details.isEmpty,
+               request.details != "Ayuda con \(request.activityTypeEnum.label.lowercased())." {
+                Text(request.details)
+                    .font(.caption)
+                    .foregroundStyle(Color.acoInk3)
+                    .lineLimit(2)
+                    .padding(.top, 2)
+            }
         }
+        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(request.activityTypeEnum.label), \(request.statusEnum.label), \(request.scheduledDateFormatted)")
     }
