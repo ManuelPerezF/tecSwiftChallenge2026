@@ -363,6 +363,7 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
             activityType: activityTypeEnum,
             neighborhood: neighborhood,
             timeWindow: timeWindow,
+            scheduledDateFormatted: scheduledDateFormatted,
             duration: duration,
             hours: hours,
             isUrgent: isUrgent,

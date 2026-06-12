@@ -110,7 +110,7 @@ struct StudentDetailView: View {
 
                 // Datos clave — 3 celdas inline sin card individual
                 HStack(spacing: 8) {
-                    factCell(symbol: "clock", value: request.timeWindow.shortLabel, label: "horario")
+                    factCell(symbol: "clock", value: request.scheduledDateFormatted, label: "horario")
                     factCell(symbol: "timer", value: request.duration, label: "duración")
                     factCell(symbol: "star.fill", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
                 }

@@ -75,8 +75,8 @@ export const requestsService = {
     const requestId = uuidv4();
     db.prepare(`
       INSERT INTO activity_requests
-        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       requestId,
       auth.familyId,
@@ -87,6 +87,7 @@ export const requestsService = {
       data.isUrgent ? 1 : 0,
       latitude,
       longitude,
+      data.durationMinutes ?? null,
     );
 
     return this.findById(requestId);

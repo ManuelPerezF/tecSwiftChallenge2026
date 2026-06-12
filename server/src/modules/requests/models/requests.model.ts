@@ -8,6 +8,7 @@ export const createRequestBodySchema = z.object({
   isUrgent: z.boolean().optional().default(false),
   lat: z.number().optional(),
   lng: z.number().optional(),
+  durationMinutes: z.number().int().positive().optional(),
 });
 
 export type CreateRequestBody = z.infer<typeof createRequestBodySchema>;

@@ -108,7 +108,8 @@ final class APIClient {
         scheduledDate: Date,
         isUrgent: Bool,
         latitude: Double? = nil,
-        longitude: Double? = nil
+        longitude: Double? = nil,
+        durationMinutes: Int? = nil
     ) async throws -> APIRequest {
         var body: [String: Any] = [
             "activityType":  activityType.rawValue,
@@ -119,6 +120,7 @@ final class APIClient {
         if let elderlyProfileId { body["elderlyProfileId"] = elderlyProfileId }
         if let lat = latitude  { body["lat"] = lat }
         if let lng = longitude { body["lng"] = lng }
+        if let dm = durationMinutes { body["durationMinutes"] = dm }
         return try await post(path: "requests", body: body)
     }
 

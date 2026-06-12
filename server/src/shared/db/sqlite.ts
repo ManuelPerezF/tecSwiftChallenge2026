@@ -12,6 +12,11 @@ export const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
+// Safe column migrations (no version bump needed — idempotent)
+function addColumnIfMissing(table: string, column: string, definition: string) {
+  try { db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run(); } catch {}
+}
+
 // ── Schema versioning ─────────────────────────────────────────────
 // v2 introduce families/applications/assignments; si la DB es vieja se recrea.
 const SCHEMA_VERSION = 3;
@@ -191,11 +196,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id);
 `);
 
-// Migración incremental: columna inicio_solicitado_at en DBs existentes
+// Migraciones incrementales
 const assignmentCols = db.prepare("PRAGMA table_info(assignments)").all() as Array<{ name: string }>;
 if (!assignmentCols.some((c) => c.name === "inicio_solicitado_at")) {
   db.exec("ALTER TABLE assignments ADD COLUMN inicio_solicitado_at TEXT");
 }
+addColumnIfMissing("activity_requests", "duration_minutes", "INTEGER");
 
 // ── Seed ──────────────────────────────────────────────────────────
 

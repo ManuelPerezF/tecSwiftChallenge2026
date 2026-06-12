@@ -11,6 +11,7 @@ struct FamilyPublishView: View {
     @State private var scheduledDate: Date = {
         Calendar.current.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
     }()
+    @State private var selectedDurationMinutes: Int? = nil
     @State private var isUrgent: Bool = false
     @State private var descriptionText: String = ""
     @State private var isPublished: Bool = false
@@ -175,6 +176,42 @@ struct FamilyPublishView: View {
                     .font(.caption).foregroundStyle(Color.acoInk3)
                     .padding(.horizontal, 24).padding(.top, 7)
 
+                // Duración
+                fieldLabel("¿Cuánto tiempo aproximadamente?")
+                    .padding(.horizontal, 20).padding(.top, 22)
+                let durations: [(Int, String)] = [
+                    (30, "30 min"), (45, "45 min"), (60, "1 h"),
+                    (90, "1.5 h"), (120, "2 h"), (180, "3 h")
+                ]
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(durations, id: \.0) { minutes, label in
+                            let isSelected = selectedDurationMinutes == minutes
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    selectedDurationMinutes = isSelected ? nil : minutes
+                                }
+                            } label: {
+                                Text(label)
+                                    .font(.subheadline).fontWeight(.semibold)
+                                    .foregroundStyle(isSelected ? Color.acoFamily : Color.acoInk2)
+                                    .padding(.horizontal, 16).padding(.vertical, 10)
+                                    .background(isSelected ? Color.acoFamilySoft : Color(acoHex: "FDFBF8"))
+                                    .clipShape(.capsule)
+                                    .overlay {
+                                        Capsule().strokeBorder(
+                                            isSelected ? Color.acoFamily : Color(acoHex: "3C3228").opacity(0.10),
+                                            lineWidth: isSelected ? 2 : 1
+                                        )
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+
                 // Urgencia
                 Button {
                     withAnimation(.easeInOut(duration: 0.15)) { isUrgent.toggle() }
@@ -221,7 +258,8 @@ struct FamilyPublishView: View {
                 scheduledDate: scheduledDate,
                 isUrgent: isUrgent,
                 latitude: familyCoordinate?.latitude,
-                longitude: familyCoordinate?.longitude
+                longitude: familyCoordinate?.longitude,
+                durationMinutes: selectedDurationMinutes
             )
             await MainActor.run {
                 isLoading = false
@@ -240,6 +278,7 @@ struct FamilyPublishView: View {
         descriptionText = ""
         selectedActivity = .mandados
         isUrgent = false
+        selectedDurationMinutes = nil
         scheduledDate = Calendar.current.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
     }
 
