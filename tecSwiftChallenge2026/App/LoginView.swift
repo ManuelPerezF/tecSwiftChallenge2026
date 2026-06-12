@@ -7,6 +7,8 @@ struct LoginView: View {
     @AppStorage("aco_familyCode") private var savedFamilyCode: String = ""
     @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
     @AppStorage("aco_elderlyProfileId") private var savedElderlyProfileId: String = ""
+    @AppStorage("aco_studentId") private var savedStudentId: String = ""
+    @AppStorage("aco_userId")    private var savedUserId: String = ""
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showSplash = true
@@ -37,7 +39,9 @@ struct LoginView: View {
     private enum Field { case name, email, password, career, familyName }
 
     private var canSubmit: Bool {
-        let base = !email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty && !isLoading
+        let base = !email.trimmingCharacters(in: .whitespaces).isEmpty
+            && !password.isEmpty
+            && !isLoading
         guard isRegistering else { return base }
         let hasName = !name.trimmingCharacters(in: .whitespaces).isEmpty
         let studentOk = selectedRole != .student || selectedUniversityId != nil
@@ -400,6 +404,8 @@ struct LoginView: View {
                 savedFamilyCode = response.profile.familyCode ?? ""
                 joinedFamily = response.profile.joinedFamily ?? (role != .elderly)
                 savedElderlyProfileId = response.profile.elderlyProfileId ?? ""
+                savedStudentId = response.profile.studentId ?? ""
+                savedUserId = response.user.id
                 savedToken = response.token
                 savedName = response.user.name
                 savedRoleRaw = role.rawValue
@@ -407,11 +413,26 @@ struct LoginView: View {
             } catch let error as APIError {
                 errorMessage = error.errorDescription
                 KuidarHaptic.error()
+            } catch let error as URLError {
+                errorMessage = connectionMessage(for: error)
+                KuidarHaptic.error()
             } catch {
-                errorMessage = APIError.serverUnreachable.errorDescription
+                errorMessage = connectionMessage(for: URLError(.cannotConnectToHost))
                 KuidarHaptic.error()
             }
             isLoading = false
+        }
+    }
+
+    private func connectionMessage(for error: URLError) -> String {
+        switch error.code {
+        case .cannotConnectToHost, .networkConnectionLost, .notConnectedToInternet, .timedOut:
+            """
+            No se pudo conectar al servidor (\(APIConfig.host):\(APIConfig.port)). \
+            Confirma que `npm run dev` está activo y que el iPhone usa la misma WiFi.
+            """
+        default:
+            error.localizedDescription
         }
     }
 }

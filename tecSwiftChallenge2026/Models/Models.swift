@@ -255,6 +255,62 @@ struct StudentProfile: Codable, Identifiable, Sendable {
     let ratings: [APIRating]
 }
 
+// MARK: - Mensajería in-app
+
+struct APIConversation: Codable, Identifiable, Hashable, Sendable {
+    let studentId: String
+    let studentName: String
+    let lastBody: String
+    let lastAt: String
+    let unreadCount: Int
+
+    var id: String { studentId }
+
+    var lastAtFormatted: String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso2 = ISO8601DateFormatter()
+        iso2.formatOptions = [.withInternetDateTime]
+        guard let date = iso.date(from: lastAt) ?? iso2.date(from: lastAt) else { return lastAt }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { df.dateFormat = "HH:mm" }
+        else if cal.isDateInYesterday(date) { df.dateFormat = "'Ayer'" }
+        else { df.dateFormat = "d MMM" }
+        return df.string(from: date)
+    }
+}
+
+struct APIMessage: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let fromUserId: String
+    let fromName: String
+    let toStudentId: String
+    let toUserId: String?
+    let body: String
+    let assignmentId: String?
+    let readAt: String?
+    let createdAt: String
+
+    var isUnread: Bool { readAt == nil }
+
+    var createdAtFormatted: String {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso2 = ISO8601DateFormatter()
+        iso2.formatOptions = [.withInternetDateTime]
+        guard let date = iso.date(from: createdAt) ?? iso2.date(from: createdAt) else { return createdAt }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        let cal = Calendar.current
+        if cal.isDateInToday(date) { df.dateFormat = "HH:mm" }
+        else if cal.isDateInYesterday(date) { df.dateFormat = "'Ayer · 'HH:mm" }
+        else { df.dateFormat = "d MMM · HH:mm" }
+        return df.string(from: date)
+    }
+}
+
 // MARK: - Ubicación
 
 struct APILocation: Codable, Hashable, Sendable {

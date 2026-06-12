@@ -11,7 +11,9 @@ struct StudentCommitmentsView: View {
     @State private var busyAssignmentId: String?
 
     var body: some View {
-        Group {
+        ZStack {
+            Color.acoBg.ignoresSafeArea()
+
             if isLoading && assignments.isEmpty && applications.isEmpty {
                 ProgressView("Cargando…").tint(Color.acoStudent)
             } else if assignments.isEmpty && pendingApplications.isEmpty {
@@ -20,7 +22,6 @@ struct StudentCommitmentsView: View {
                 content
             }
         }
-        .acoScreenBackground()
         .navigationTitle("Mis visitas")
         .navigationBarTitleDisplayMode(.large)
         .task { await load() }
@@ -50,8 +51,7 @@ struct StudentCommitmentsView: View {
                 }
 
                 if !pendingApplications.isEmpty {
-                    SectionLabel(text: "Postulaciones pendientes")
-                        .padding(.top, 12)
+                    sectionLabel("POSTULACIONES PENDIENTES")
                     ForEach(pendingApplications) { app in
                         PendingApplicationRow(application: app)
                     }
@@ -59,8 +59,7 @@ struct StudentCommitmentsView: View {
 
                 let history = assignments.filter { !$0.statusEnum.isActive }
                 if !history.isEmpty {
-                    SectionLabel(text: "Historial")
-                        .padding(.top, 12)
+                    sectionLabel("HISTORIAL")
                     ForEach(history) { assignment in
                         AssignmentCard(assignment: assignment, isBusy: false, onAdvance: {})
                     }
@@ -72,13 +71,28 @@ struct StudentCommitmentsView: View {
         .scrollIndicators(.hidden)
     }
 
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(Color.acoInk3)
+            .padding(.top, 12)
+    }
+
     private var emptyState: some View {
-        AcoEmptyState(
-            symbol: "figure.walk",
-            title: "Sin visitas aún",
-            message: "Explora el mapa y postúlate a tu primera actividad.",
-            tint: .acoStudent
-        )
+        VStack(spacing: 20) {
+            ZStack {
+                Circle().fill(Color.acoStudentSoft).frame(width: 96, height: 96)
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 38)).foregroundStyle(Color.acoStudent)
+            }
+            Text("Sin visitas aún")
+                .font(.title3).bold().foregroundStyle(Color.acoInk)
+            Text("Explora el mapa y postúlate\na tu primera actividad.")
+                .font(.body).foregroundStyle(Color.acoInk3)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 32)
     }
 
     // MARK: - Data

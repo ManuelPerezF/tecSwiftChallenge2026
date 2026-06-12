@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum FamilyTab: Hashable {
-    case publish, dashboard, family
+    case publish, dashboard, messages, family
 }
 
 struct FamilyRootView: View {
@@ -25,6 +25,20 @@ struct FamilyRootView: View {
                         }
                         .navigationDestination(for: APIAssignment.self) { assignment in
                             FamilyLiveVisitView(assignment: assignment)
+                        }
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                }
+            }
+            Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: FamilyTab.messages) {
+                NavigationStack {
+                    FamilyConversationsView()
+                        .navigationDestination(for: APIConversation.self) { conv in
+                            ChatThreadView(
+                                title: conv.studentName,
+                                otherId: conv.studentId,
+                                tint: .acoFamily,
+                                isFamily: true
+                            )
                         }
                         .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }

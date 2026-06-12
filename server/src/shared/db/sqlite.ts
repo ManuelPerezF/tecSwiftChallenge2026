@@ -203,6 +203,24 @@ if (!assignmentCols.some((c) => c.name === "inicio_solicitado_at")) {
 }
 addColumnIfMissing("activity_requests", "duration_minutes", "INTEGER");
 
+// Mensajería in-app (tabla segura — idempotente)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id            TEXT PRIMARY KEY,
+    from_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    to_user_id    TEXT REFERENCES users(id) ON DELETE CASCADE,
+    body          TEXT NOT NULL,
+    assignment_id TEXT REFERENCES assignments(id) ON DELETE SET NULL,
+    read_at       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_messages_to_student ON messages(to_student_id);
+`);
+
+// Migración segura: añadir to_user_id a tablas existentes
+try { db.exec(`ALTER TABLE messages ADD COLUMN to_user_id TEXT REFERENCES users(id) ON DELETE CASCADE`); } catch { /* ya existe */ }
+
 // ── Seed ──────────────────────────────────────────────────────────
 
 export function generateFamilyCode(): string {

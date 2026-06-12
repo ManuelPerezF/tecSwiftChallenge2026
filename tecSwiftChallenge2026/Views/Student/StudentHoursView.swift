@@ -2,9 +2,10 @@ import SwiftUI
 
 struct StudentHoursView: View {
     @AppStorage("student_goal_hours") private var goalHours: Int = 0
-    @AppStorage("aco_authToken") private var authToken: String = ""
+    @AppStorage("aco_studentId") private var studentId: String = ""
 
     @State private var assignments: [APIAssignment] = []
+    @State private var studentProfile: StudentProfile? = nil
     @State private var isLoading = false
     @State private var showGoalSheet = false
     @State private var goalInput: String = ""
@@ -32,7 +33,9 @@ struct StudentHoursView: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            Color.acoBg.ignoresSafeArea()
+
             if isLoading && assignments.isEmpty {
                 ProgressView("Cargando…").tint(Color.acoStudent)
             } else {
@@ -46,6 +49,10 @@ struct StudentHoursView: View {
                             breakdownCard
                         }
 
+                        if let profile = studentProfile {
+                            reputationSection(profile)
+                        }
+
                         Spacer().frame(height: 100)
                     }
                     .padding(.horizontal, 20)
@@ -53,7 +60,6 @@ struct StudentHoursView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .acoScreenBackground()
         .navigationTitle("Mis horas")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -80,54 +86,64 @@ struct StudentHoursView: View {
     // MARK: - Hero
 
     private var heroSection: some View {
-        VStack(alignment: .leading, spacing: AcoSpacing.md) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(hoursFormatted(totalHours)) horas")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(Color.acoInk)
-                    .monospacedDigit()
-                Text("Servicio social registrado")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.acoInk2)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text(hoursFormatted(totalHours))
+                    .font(.system(size: 76, weight: .heavy))
+                    .foregroundStyle(Color.acoStudent)
+                    .tracking(-2)
+                Text("h")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Color.acoStudent.opacity(0.55))
+                Spacer()
             }
 
             if goalHours > 0 {
-                VStack(alignment: .leading, spacing: AcoSpacing.xs) {
-                    HStack {
-                        Text("Meta: \(goalHours) h")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Color.acoInk2)
-                        Spacer()
-                        Text("\(max(0, goalHours - Int(totalHours))) h restantes")
-                            .font(.footnote)
-                            .foregroundStyle(Color.acoInk3)
-                            .monospacedDigit()
+                Text("de \(goalHours) h · tu meta")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.acoInk2)
+                    .padding(.top, 2)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color(acoHex: "E7DECF"))
+                        Capsule()
+                            .fill(Color.acoStudent)
+                            .frame(width: geo.size.width * progress)
+                            .animation(.easeOut(duration: 0.6), value: progress)
                     }
-                    ProgressView(value: progress)
-                        .tint(.acoStudent)
-                        .animation(.easeOut(duration: 0.25), value: progress)
+                    .frame(height: 6)
                 }
-                .padding(AcoSpacing.md)
-                .acoGroupedSurface()
+                .frame(height: 6)
+                .padding(.top, 16)
+
+                HStack {
+                    Text("\(Int(progress * 100))% completado")
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoStudent)
+                    Spacer()
+                    Text("\(max(0, goalHours - Int(totalHours))) h restantes")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+                }
+                .padding(.top, 8)
             } else {
                 Button {
                     showGoalSheet = true
                 } label: {
                     Label("Establece tu meta de horas", systemImage: "target")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoStudent)
                 }
-                .buttonStyle(.bordered)
-                .tint(.acoStudent)
+                .buttonStyle(.plain)
+                .padding(.top, 8)
             }
 
             if !completedAssignments.isEmpty {
-                Label("\(completedAssignments.count) visitas completadas", systemImage: "checkmark.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.acoInk2)
+                inlineStat(symbol: "checkmark.circle.fill",
+                           value: "\(completedAssignments.count)",
+                           label: "visitas completadas")
+                    .padding(.top, 20)
             }
         }
-        .padding(.top, AcoSpacing.sm)
     }
 
     // MARK: - Breakdown
@@ -213,13 +229,45 @@ struct StudentHoursView: View {
         .presentationDetents([.medium])
     }
 
+    // MARK: - Reputation
+
+    @ViewBuilder
+    private func reputationSection(_ profile: StudentProfile) -> some View {
+        if !profile.badges.isEmpty {
+            SectionLabel(text: "Insignias").padding(.top, 22)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(profile.badges) { badge in
+                        BadgeCard(badge: badge)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+
+        if !profile.ratings.isEmpty {
+            SectionLabel(text: "Calificaciones recibidas").padding(.top, 22)
+            AcoCard {
+                VStack(spacing: 0) {
+                    ForEach(Array(profile.ratings.enumerated()), id: \.element.id) { index, rating in
+                        RatingRow(rating: rating)
+                        if index < profile.ratings.count - 1 {
+                            Divider().padding(.vertical, 8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func load() async {
         isLoading = true
-        if let loaded = try? await APIClient.shared.fetchMyAssignments() {
-            assignments = loaded
-        }
+        async let assignmentsTask = APIClient.shared.fetchMyAssignments()
+        async let profileTask = APIClient.shared.fetchMyStudentProfile()
+        assignments = (try? await assignmentsTask) ?? []
+        studentProfile = try? await profileTask
         isLoading = false
     }
 

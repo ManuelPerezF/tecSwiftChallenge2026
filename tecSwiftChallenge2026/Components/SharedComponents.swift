@@ -354,6 +354,65 @@ private struct PinPointer: Shape {
     }
 }
 
+// MARK: - BadgeCard
+struct BadgeCard: View {
+    let badge: APIBadge
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(badge.icon)
+                .font(.system(size: 30))
+            Text(badge.title)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.acoInk)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(badge.description)
+                .font(.caption2)
+                .foregroundStyle(Color.acoInk2)
+                .lineLimit(3)
+        }
+        .padding(13)
+        .frame(width: 130, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: AcoRadius.md, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
+                .strokeBorder(Color.acoHair, lineWidth: 0.5)
+        }
+    }
+}
+
+// MARK: - RatingRow
+struct RatingRow: View {
+    let rating: APIRating
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                StarRating(value: Double(rating.stars), size: 13)
+                Spacer()
+                Text(rating.authorName)
+                    .font(.caption)
+                    .foregroundStyle(Color.acoInk3)
+            }
+            if !rating.tags.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(rating.tags, id: \.self) { tag in
+                        ChipButton(label: tag, tint: .acoDone, soft: Color(acoHex: "EFF1E6"), isActive: false) {}
+                    }
+                }
+            }
+            if !rating.comment.isEmpty {
+                Text(rating.comment)
+                    .font(.caption)
+                    .foregroundStyle(Color.acoInk2)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 // MARK: - StatusRow
 struct StatusRow: View {
     let status: RequestStatus

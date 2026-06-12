@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum StudentTab: Hashable {
-    case map, commitments, hours
+    case map, commitments, hours, inbox
 }
 
 struct StudentRootView: View {
@@ -36,6 +36,16 @@ struct StudentRootView: View {
             Tab("Horas", systemImage: "timer", value: StudentTab.hours) {
                 NavigationStack {
                     StudentHoursView()
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                logoutButton
+                            }
+                        }
+                }
+            }
+            Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: StudentTab.inbox) {
+                NavigationStack {
+                    StudentInboxView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 logoutButton
