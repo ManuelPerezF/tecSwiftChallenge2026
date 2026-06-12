@@ -121,6 +121,10 @@ struct ElderlyVisitView: View {
             VStack(spacing: 16) {
                 activityCard
 
+                if !assignment.details.isEmpty {
+                    reasonCard
+                }
+
                 if isOnWay && !hasConfirmed {
                     onWayStatus
                 } else if currentStatus == .approved {
@@ -152,17 +156,53 @@ struct ElderlyVisitView: View {
                 .foregroundStyle(Color.acoInk)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
-            if !assignment.details.isEmpty {
-                Text(assignment.details)
+
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
                     .font(.body)
+                    .foregroundStyle(Color.acoElderly)
+                    .accessibilityHidden(true)
+                Text(scheduledDateLabel)
+                    .font(.title3).fontWeight(.semibold)
                     .foregroundStyle(Color.acoInk2)
-                    .multilineTextAlignment(.center)
             }
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 22)
         .background(Color.acoElderlySoft)
         .clipShape(.rect(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// La razón de la visita, en palabras de su familia.
+    private var reasonCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Tu familia pidió", systemImage: "heart.fill")
+                .font(.subheadline).fontWeight(.bold)
+                .foregroundStyle(Color.acoElderly)
+            Text("“\(assignment.details)”")
+                .font(.title3)
+                .foregroundStyle(Color.acoInk)
+                .lineSpacing(3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color.white)
+        .clipShape(.rect(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tu familia pidió: \(assignment.details)")
+    }
+
+    /// Fecha completa, en español y fácil de leer: "sábado 14 de junio".
+    private var scheduledDateLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        df.dateFormat = "EEEE d 'de' MMMM"
+        let raw = df.string(from: assignment.scheduledDateParsed)
+        if Calendar.current.isDateInToday(assignment.scheduledDateParsed) { return "Hoy" }
+        if Calendar.current.isDateInTomorrow(assignment.scheduledDateParsed) { return "Mañana" }
+        return raw.prefix(1).capitalized + raw.dropFirst()
     }
 
     private var onWayStatus: some View {
@@ -183,7 +223,7 @@ struct ElderlyVisitView: View {
 
     private var scheduledTimeView: some View {
         VStack(spacing: 4) {
-            Text("Llega a las")
+            Text("Llega \(scheduledDateLabel == "Hoy" ? "hoy" : scheduledDateLabel == "Mañana" ? "mañana" : "el \(scheduledDateLabel.lowercased())") a las")
                 .font(.title3)
                 .foregroundStyle(Color.acoInk2)
             Text(scheduledTimeLabel)

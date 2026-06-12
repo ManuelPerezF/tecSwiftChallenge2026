@@ -71,7 +71,7 @@ struct FamilyStudentProfileView: View {
                 HStack(spacing: 8) {
                     statCell(
                         value: hoursText(profile.totalHours),
-                        label: "horas de servicio",
+                        label: profile.totalHours == 1 ? "hora de servicio" : "horas de servicio",
                         color: .acoFamily
                     )
                     statCell(

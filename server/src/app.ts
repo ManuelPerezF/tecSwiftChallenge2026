@@ -4,6 +4,7 @@ import os from "node:os";
 import { applicationsRouter } from "./modules/applications/routes/applications.routes.js";
 import { assignmentsRouter } from "./modules/assignments/routes/assignments.routes.js";
 import { authRouter } from "./modules/auth/routes/auth.routes.js";
+import { elderlyChatRouter } from "./modules/elderly-chat/routes/elderlyChat.routes.js";
 import { eventTypesRouter } from "./modules/event-types/routes/eventTypes.routes.js";
 import { notificationsRouter } from "./modules/notifications/routes/notifications.routes.js";
 import { organizerRouter } from "./modules/organizer/routes/organizer.routes.js";
@@ -33,6 +34,7 @@ app.use("/api/messages", messagesRouter);
 app.use("/api/event-types", eventTypesRouter);
 app.use("/api/organizer", organizerRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/elderly-chat", elderlyChatRouter);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", app: "Kuidar" });

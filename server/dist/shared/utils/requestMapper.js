@@ -56,6 +56,11 @@ export function normalizeRequest(row) {
         matchScore: matchScore(row.activity_type),
         duration: row.duration_minutes ? formatDuration(row.duration_minutes) : durationLabel(row.activity_type),
         hours: row.duration_minutes ? row.duration_minutes / 60 : activityHours(row.activity_type),
+        isCommunityEvent: row.is_community_event === 1,
+        maxHelpersRequired: row.max_helpers_required ?? 1,
+        activeHelpers: row.active_helpers ?? 0,
+        maxElderlyAttendees: row.max_elderly_attendees ?? 0,
+        activeElderlyAttendees: row.active_elderly_attendees ?? 0,
     };
 }
 //# sourceMappingURL=requestMapper.js.map

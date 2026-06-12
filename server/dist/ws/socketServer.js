@@ -29,6 +29,13 @@ function send(ws, payload) {
         ws.send(JSON.stringify(payload));
     }
 }
+/** Envía un payload a todas las conexiones de un usuario (notificaciones in-app). */
+export function sendToUser(userId, payload) {
+    for (const [ws, state] of clients) {
+        if (state.auth.id === userId)
+            send(ws, payload);
+    }
+}
 function locationsPayload(assignmentId) {
     const rows = db
         .prepare("SELECT role, latitude, longitude, recorded_at FROM location_updates WHERE assignment_id = ?")
@@ -49,6 +56,27 @@ export function broadcastLocation(assignmentId) {
     const payload = locationsPayload(assignmentId);
     for (const [ws, state] of clients) {
         if (state.subscribedAssignments.has(assignmentId)) {
+            send(ws, payload);
+        }
+    }
+}
+/**
+ * Envía un mensaje de chat en tiempo real a todos los clientes WS involucrados.
+ * senderFamilyId: set cuando la familia envía al estudiante.
+ * recipientUserId: set cuando el estudiante responde a un usuario familiar.
+ */
+export function broadcastChatMessage(message, senderFamilyId, recipientUserId) {
+    const payload = { type: "chat:message", message };
+    for (const [ws, state] of clients) {
+        const { auth } = state;
+        // Recipient student
+        const isStudent = auth.studentId === message.toStudentId;
+        // Family sender sees it on other devices / family recipient of student reply
+        const isFamilyInvolved = (senderFamilyId && auth.familyId === senderFamilyId) ||
+            (recipientUserId && auth.id === recipientUserId);
+        // Student sender sees own message
+        const isSelf = auth.id === message.fromUserId;
+        if (isStudent || isFamilyInvolved || isSelf) {
             send(ws, payload);
         }
     }
@@ -84,6 +112,23 @@ export function broadcastAssignmentStatus(assignmentId) {
         const involved = state.subscribedAssignments.has(assignmentId) ||
             state.auth.familyId === row.family_id ||
             state.auth.studentId === row.student_id;
+        if (involved)
+            send(ws, payload);
+    }
+}
+/** Notifica que un request se reabrió (cancelación) a la familia y a sus postulantes. */
+export function broadcastRequestReopened(requestId) {
+    const row = db
+        .prepare("SELECT id, family_id FROM activity_requests WHERE id = ?")
+        .get(requestId);
+    if (!row)
+        return;
+    const applicants = new Set(db.prepare("SELECT student_id FROM applications WHERE request_id = ?").all(requestId)
+        .map((r) => r.student_id));
+    const payload = { type: "request:reopened", requestId: row.id };
+    for (const [ws, state] of clients) {
+        const involved = state.auth.familyId === row.family_id ||
+            (state.auth.studentId != null && applicants.has(state.auth.studentId));
         if (involved)
             send(ws, payload);
     }

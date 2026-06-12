@@ -41,5 +41,37 @@ export const requestsController = {
             next(error);
         }
     },
+    listCommunityEvents(_req, res, next) {
+        try {
+            res.json(requestsService.findCommunityEvents());
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    registerAttendee(req, res, next) {
+        try {
+            res.status(201).json(requestsService.registerAttendee(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    listAttendees(req, res, next) {
+        try {
+            res.json(requestsService.listAttendees(req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    unregisterAttendee(req, res, next) {
+        try {
+            res.json(requestsService.unregisterAttendee(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
 };
 //# sourceMappingURL=requests.controller.js.map

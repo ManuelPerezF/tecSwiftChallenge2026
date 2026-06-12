@@ -65,12 +65,8 @@ struct NotificationsView: View {
                     NotificationCard(
                         notification: notification,
                         tint: tint,
-                        onYes: notification.requiresConfirmation && isStudent
-                            ? { Task { await confirmYes(notification) } }
-                            : nil,
-                        onNo: notification.requiresConfirmation
-                            ? { Task { await markRead(notification) } }
-                            : nil,
+                        onYes: yesAction(for: notification),
+                        onNo: noAction(for: notification),
                         onTap: { Task { await markRead(notification) } }
                     )
                 }
@@ -93,6 +89,17 @@ struct NotificationsView: View {
     }
 
     // MARK: - Actions
+
+    /// Tipos explícitos para evitar la ambigüedad de `Task.init` dentro de ternarios.
+    private func yesAction(for notification: APINotification) -> (() -> Void)? {
+        guard notification.requiresConfirmation && isStudent else { return nil }
+        return { Task { await confirmYes(notification) } }
+    }
+
+    private func noAction(for notification: APINotification) -> (() -> Void)? {
+        guard notification.requiresConfirmation else { return nil }
+        return { Task { await markRead(notification) } }
+    }
 
     private func load() async {
         isLoading = true
@@ -146,6 +153,7 @@ private struct NotificationCard: View {
         case "change_proposal":         "clock.arrow.2.circlepath"
         case "completion_pending":      "checkmark.seal"
         case "match_found":             "heart.circle.fill"
+        case "schedule_matches":        "calendar.badge.clock"
         case "chat_unlocked":           "bubble.left.and.bubble.right.fill"
         default:                        "bell.fill"
         }

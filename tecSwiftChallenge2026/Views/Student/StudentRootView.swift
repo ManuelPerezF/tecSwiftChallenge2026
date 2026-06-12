@@ -1,27 +1,21 @@
 import SwiftUI
 
 enum StudentTab: Hashable {
-    case map, commitments, hours, inbox
+    case map, commitments, inbox
 }
 
 struct StudentRootView: View {
     let onLogout: () -> Void
     @State private var selectedTab: StudentTab = .map
+    @State private var showProfile = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            // Mapa al centro de la tab bar (Visitas · Mapa · Horas · Mensajes)
+            // Mapa al centro de la tab bar (Visitas · Mapa · Mensajes)
             Tab("Visitas", systemImage: "checkmark.circle", value: StudentTab.commitments) {
                 NavigationStack {
                     StudentCommitmentsView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NotificationBellButton(tint: .acoStudent, isStudent: true)
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                logoutButton
-                            }
-                        }
+                        .toolbar { studentToolbar }
                 }
             }
             Tab("Mapa", systemImage: "map", value: StudentTab.map) {
@@ -30,58 +24,39 @@ struct StudentRootView: View {
                         .navigationDestination(for: OpenRequest.self) { req in
                             StudentDetailView(request: req)
                         }
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NotificationBellButton(tint: .acoStudent, isStudent: true)
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                logoutButton
-                            }
-                        }
-                }
-            }
-            Tab("Horas", systemImage: "timer", value: StudentTab.hours) {
-                NavigationStack {
-                    StudentHoursView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NotificationBellButton(tint: .acoStudent, isStudent: true)
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                logoutButton
-                            }
-                        }
+                        .toolbar { studentToolbar }
                 }
             }
             Tab("Mensajes", systemImage: "bubble.left.and.bubble.right", value: StudentTab.inbox) {
                 NavigationStack {
                     StudentInboxView()
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                NotificationBellButton(tint: .acoStudent, isStudent: true)
-                            }
-                            ToolbarItem(placement: .topBarTrailing) {
-                                logoutButton
-                            }
-                        }
+                        .toolbar { studentToolbar }
                 }
             }
         }
         .tint(.acoStudent)
+        .sheet(isPresented: $showProfile) {
+            StudentProfileView(onLogout: onLogout)
+        }
     }
 
-    private var logoutButton: some View {
-        Menu {
-            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                onLogout()
+    /// Perfil arriba a la izquierda (patrón común a todos los roles) + campana a la derecha.
+    @ToolbarContentBuilder
+    private var studentToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                showProfile = true
+            } label: {
+                Image(systemName: "person.circle")
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.title3)
+                    .foregroundStyle(Color.acoInk2)
             }
-        } label: {
-            Image(systemName: "person.circle")
-                .symbolRenderingMode(.hierarchical)
-                .font(.title3)
-                .foregroundStyle(Color.acoInk2)
+            .accessibilityLabel("Mi perfil")
         }
-        .accessibilityLabel("Cuenta")
+        ToolbarItem(placement: .topBarTrailing) {
+            NotificationBellButton(tint: .acoStudent, isStudent: true)
+        }
     }
 }
 

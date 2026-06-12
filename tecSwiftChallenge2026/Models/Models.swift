@@ -120,8 +120,14 @@ struct ElderlySummary: Codable, Identifiable, Hashable, Sendable {
     let lat: Double
     let lng: Double
     let tags: [String]?
+    // 3.12/3.16 — edad + control parental
+    let age: Int?
+    let allowSocialConnections: Bool?
+    let allowSelfProfileEdit: Bool?
 
     var tagList: [String] { tags ?? [] }
+    var socialAllowed: Bool { allowSocialConnections ?? true }
+    var selfEditAllowed: Bool { allowSelfProfileEdit ?? false }
 }
 
 // MARK: - Postulaciones

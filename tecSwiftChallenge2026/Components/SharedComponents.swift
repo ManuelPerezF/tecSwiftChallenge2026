@@ -1,5 +1,22 @@
 import SwiftUI
 
+// MARK: - Pluralización de horas ("1 hora" / "2 horas") — usar en TODA la app
+
+/// "1 hora", "2 horas", "2.5 horas" — nunca "1 horas".
+func horasLabel(_ value: Double) -> String {
+    let formatted = value.truncatingRemainder(dividingBy: 1) == 0
+        ? String(format: "%.0f", value)
+        : String(format: "%.1f", value)
+    return value == 1 ? "\(formatted) hora" : "\(formatted) horas"
+}
+
+func horasLabel(_ value: Int) -> String {
+    value == 1 ? "\(value) hora" : "\(value) horas"
+}
+
+/// Solo la palabra, para cuando el número va aparte: "hora" / "horas".
+func horasWord(_ value: Int) -> String { value == 1 ? "hora" : "horas" }
+
 // MARK: - AvatarView
 struct AvatarView: View {
     let name: String

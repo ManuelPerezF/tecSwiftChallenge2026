@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>KUIDAR_API_HOST</key>
-	<string>192.168.1.222</string>
+	<string>10.22.205.93</string>
 	<key>KUIDAR_API_PORT</key>
 	<string>3000</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
@@ -41,7 +41,7 @@
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
 			</dict>
-			<key>192.168.1.222</key>
+			<key>10.22.205.93</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

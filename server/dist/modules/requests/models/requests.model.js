@@ -8,5 +8,9 @@ export const createRequestBodySchema = z.object({
     lat: z.number().optional(),
     lng: z.number().optional(),
     durationMinutes: z.number().int().positive().optional(),
+    // Eventos comunitarios (solo rol organizer)
+    isCommunityEvent: z.boolean().optional().default(false),
+    maxHelpersRequired: z.number().int().positive().optional().default(1),
+    maxElderlyAttendees: z.number().int().nonnegative().optional().default(0),
 });
 //# sourceMappingURL=requests.model.js.map

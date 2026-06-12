@@ -9,7 +9,7 @@ function createSession(userId) {
     return token;
 }
 export function buildProfile(userId, role) {
-    if (role === "family") {
+    if (role === "family" || role === "organizer") {
         const row = db.prepare(`
       SELECT f.id AS family_id, f.family_code, f.name AS family_name
       FROM family_members fm JOIN families f ON fm.family_id = f.id
@@ -62,7 +62,8 @@ export const authService = {
         const tx = db.transaction(() => {
             db.prepare("INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)")
                 .run(userId, email, hashPassword(data.password), data.name.trim(), data.role);
-            if (data.role === "family") {
+            if (data.role === "family" || data.role === "organizer") {
+                // organizer: organización comunitaria modelada como "familia" propia
                 let familyId;
                 if (data.familyCode) {
                     // Unirse a familia existente con código

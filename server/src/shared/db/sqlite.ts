@@ -282,6 +282,17 @@ db.exec(`
     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(elderly_a_id, elderly_b_id)
   );
+
+  -- 3.14: chat 1:1 adulto mayor ↔ adulto mayor (desbloqueado por match local)
+  CREATE TABLE IF NOT EXISTS elderly_messages (
+    id                TEXT PRIMARY KEY,
+    match_id          TEXT NOT NULL REFERENCES elderly_matches(id) ON DELETE CASCADE,
+    sender_profile_id TEXT NOT NULL REFERENCES elderly_profiles(id) ON DELETE CASCADE,
+    body              TEXT NOT NULL,
+    read_at           TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_elderly_messages_match ON elderly_messages(match_id, created_at);
 `);
 
 // Seed del catálogo de tipos de evento

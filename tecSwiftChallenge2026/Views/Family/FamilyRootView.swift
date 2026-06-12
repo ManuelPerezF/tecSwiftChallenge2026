@@ -7,6 +7,7 @@ enum FamilyTab: Hashable {
 struct FamilyRootView: View {
     let onLogout: () -> Void
     @State private var selectedTab: FamilyTab = .dashboard
+    @State private var showProfile = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -16,7 +17,7 @@ struct FamilyRootView: View {
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                         }
                 }
             }
@@ -31,7 +32,7 @@ struct FamilyRootView: View {
                         }
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                         }
                 }
             }
@@ -48,7 +49,7 @@ struct FamilyRootView: View {
                         }
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                         }
                 }
             }
@@ -57,7 +58,7 @@ struct FamilyRootView: View {
                     CommunityEventsView(isOrganizer: false)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                         }
                 }
             }
@@ -66,26 +67,120 @@ struct FamilyRootView: View {
                     FamilyManageView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoFamily) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                         }
                 }
             }
         }
         .tint(.acoFamily)
+        .sheet(isPresented: $showProfile) {
+            FamilyProfileView(onLogout: onLogout)
+        }
     }
 
-    private var logoutButton: some View {
-        Menu {
-            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                onLogout()
-            }
+    /// Perfil arriba a la izquierda (patrón común a todos los roles).
+    private var profileButton: some View {
+        Button {
+            showProfile = true
         } label: {
             Image(systemName: "person.circle")
                 .symbolRenderingMode(.hierarchical)
                 .font(.title3)
                 .foregroundStyle(Color.acoInk2)
         }
-        .accessibilityLabel("Cuenta")
+        .accessibilityLabel("Mi perfil")
+    }
+}
+
+// MARK: - Perfil de la familia (datos, código de vinculación y logout)
+
+struct FamilyProfileView: View {
+    let onLogout: () -> Void
+
+    @AppStorage("aco_userName") private var userName: String = ""
+    @AppStorage("aco_familyCode") private var cachedFamilyCode: String = ""
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var family: FamilyInfo?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.acoBg.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        VStack(spacing: 8) {
+                            AvatarView(name: userName, tint: .acoFamily, size: 76)
+                            Text(userName)
+                                .font(.title2).bold()
+                                .foregroundStyle(Color.acoInk)
+                            Text(family?.name ?? "Tu familia")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.acoInk2)
+                        }
+                        .padding(.top, 10)
+
+                        AcoCard {
+                            VStack(spacing: 6) {
+                                Text("Código para vincular adultos mayores")
+                                    .font(.caption).foregroundStyle(Color.acoInk3)
+                                Text(family?.familyCode ?? cachedFamilyCode)
+                                    .font(.system(size: 34, weight: .black, design: .monospaced))
+                                    .tracking(6)
+                                    .foregroundStyle(Color.acoInk)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+
+                        if let elderly = family?.elderly, !elderly.isEmpty {
+                            AcoCard {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Adultos mayores vinculados")
+                                        .font(.subheadline).fontWeight(.semibold)
+                                        .foregroundStyle(Color.acoInk)
+                                    ForEach(elderly) { person in
+                                        HStack(spacing: 10) {
+                                            AvatarView(name: person.firstName, tint: .acoElderly, size: 34)
+                                            Text(person.firstName)
+                                                .font(.subheadline).foregroundStyle(Color.acoInk2)
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Button(role: .destructive) {
+                            dismiss()
+                            onLogout()
+                        } label: {
+                            Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
+                                .font(.body).fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                        .padding(.top, 8)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Mi perfil")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cerrar") { dismiss() }
+                        .foregroundStyle(Color.acoInk3)
+                }
+            }
+        }
+        .task {
+            family = try? await APIClient.shared.fetchMyFamily()
+        }
     }
 }
 

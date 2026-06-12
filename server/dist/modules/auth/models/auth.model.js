@@ -7,7 +7,7 @@ export const registerBodySchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
     name: z.string().min(1),
-    role: z.enum(["family", "student", "elderly"]),
+    role: z.enum(["family", "student", "elderly", "organizer"]),
     // student
     universityId: z.string().optional(),
     career: z.string().optional(),

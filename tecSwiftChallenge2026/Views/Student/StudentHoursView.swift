@@ -1,8 +1,14 @@
 import SwiftUI
 
-struct StudentHoursView: View {
+/// Perfil del becario (icono arriba a la izquierda): horas y meta, intereses,
+/// disponibilidad, insignias, calificaciones y cierre de sesión.
+struct StudentProfileView: View {
+    let onLogout: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("student_goal_hours") private var goalHours: Int = 0
     @AppStorage("aco_studentId") private var studentId: String = ""
+    @AppStorage("aco_userName") private var userName: String = ""
 
     @AppStorage("aco_studentTags") private var savedTags: String = ""
 
@@ -42,61 +48,114 @@ struct StudentHoursView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.acoBg.ignoresSafeArea()
+        NavigationStack {
+            ZStack {
+                Color.acoBg.ignoresSafeArea()
 
-            if isLoading && assignments.isEmpty {
-                ProgressView("Cargando…").tint(Color.acoStudent)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        heroSection
-                            .padding(.bottom, 8)
+                if isLoading && assignments.isEmpty {
+                    ProgressView("Cargando…").tint(Color.acoStudent)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            profileHeader
+                                .padding(.bottom, 18)
 
-                        if !breakdown.isEmpty {
-                            SectionLabel(text: "Por tipo de actividad").padding(.top, 22)
-                            breakdownCard
+                            SectionLabel(text: "Mis horas de servicio")
+                            heroSection
+                                .padding(.bottom, 8)
+
+                            if !breakdown.isEmpty {
+                                SectionLabel(text: "Por tipo de actividad").padding(.top, 22)
+                                breakdownCard
+                            }
+
+                            SectionLabel(text: "Mis intereses").padding(.top, 22)
+                            tagsCard
+
+                            SectionLabel(text: "Mi disponibilidad").padding(.top, 22)
+                            availabilityCard
+
+                            if let profile = studentProfile {
+                                reputationSection(profile)
+                            }
+
+                            logoutSection
+                                .padding(.top, 30)
+
+                            Spacer().frame(height: 40)
                         }
-
-                        SectionLabel(text: "Mis intereses").padding(.top, 22)
-                        tagsCard
-
-                        SectionLabel(text: "Mi disponibilidad").padding(.top, 22)
-                        availabilityCard
-
-                        if let profile = studentProfile {
-                            reputationSection(profile)
-                        }
-
-                        Spacer().frame(height: 100)
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Mi perfil")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        goalInput = goalHours > 0 ? "\(goalHours)" : ""
+                        showGoalSheet = true
+                    } label: {
+                        Image(systemName: "target")
+                            .font(.body)
+                            .foregroundStyle(Color.acoStudent)
+                    }
+                    .accessibilityLabel("Cambiar meta de horas")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cerrar") { dismiss() }
+                        .foregroundStyle(Color.acoInk3)
+                }
+            }
+            .sheet(isPresented: $showGoalSheet) { goalSheet }
+            .sheet(isPresented: $showTagsSheet) { tagsSheet }
+            .task { await load() }
+            .refreshable { await load() }
+        }
+    }
+
+    // MARK: - Header del perfil
+
+    private var profileHeader: some View {
+        VStack(spacing: 8) {
+            AvatarView(name: studentProfile?.name ?? userName, tint: .acoStudent, size: 76)
+            Text(studentProfile?.name ?? userName)
+                .font(.title2).bold()
+                .foregroundStyle(Color.acoInk)
+            if let profile = studentProfile {
+                HStack(spacing: 6) {
+                    if !profile.universityName.isEmpty {
+                        UniversityBadge(university: profile.universityName, color: .acoStudent)
+                    }
+                    if !profile.career.isEmpty {
+                        BadgeLabel(text: profile.career, color: .acoInk2)
+                    }
+                }
+                if profile.averageRating > 0 {
+                    Text(String(format: "%.1f ★ promedio", profile.averageRating))
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoStar)
+                }
             }
         }
-        .navigationTitle("Mis horas")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    goalInput = goalHours > 0 ? "\(goalHours)" : ""
-                    showGoalSheet = true
-                } label: {
-                    Image(systemName: "target")
-                        .font(.body)
-                        .foregroundStyle(Color.acoStudent)
-                }
-                .accessibilityLabel("Cambiar meta de horas")
-            }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 10)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var logoutSection: some View {
+        Button(role: .destructive) {
+            dismiss()
+            onLogout()
+        } label: {
+            Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.body).fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
         }
-        .sheet(isPresented: $showGoalSheet) { goalSheet }
-        .sheet(isPresented: $showTagsSheet) { tagsSheet }
-        .task { await load() }
-        .refreshable { await load() }
-        .onAppear {
-            if goalHours == 0 { showGoalSheet = true }
-        }
+        .buttonStyle(.bordered)
+        .tint(.red)
     }
 
     // MARK: - Hero
@@ -204,55 +263,99 @@ struct StudentHoursView: View {
         }
     }
 
-    // MARK: - Disponibilidad (3.6: ventanas para notificaciones de cercanía)
+    // MARK: - Disponibilidad (3.6: rango horario real para notificaciones)
 
     @AppStorage("aco_studentWindows") private var savedWindows: String = ""
+    @State private var availStart: Date = StudentProfileView.defaultTime(hour: 16)
+    @State private var availEnd: Date = StudentProfileView.defaultTime(hour: 20)
+    @State private var scheduleEnabled = false
+    @State private var didLoadSchedule = false
+    @State private var availabilityError: String?
 
-    private var myWindows: Set<String> {
-        Set(savedWindows.split(separator: ",").map(String.init))
+    private static func defaultTime(hour: Int) -> Date {
+        Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
     }
+
+    private static let hourFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm"
+        return df
+    }()
 
     private var availabilityCard: some View {
         AcoCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Te avisaremos de solicitudes cercanas solo en tus horarios disponibles.")
-                    .font(.caption).foregroundStyle(Color.acoInk2)
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(isOn: $scheduleEnabled) {
+                    Text("Avisarme solo en mi horario")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoInk)
+                }
+                .tint(Color.acoStudent)
+                .onChange(of: scheduleEnabled) { _, enabled in
+                    guard didLoadSchedule else { return }
+                    if !enabled { Task { await saveAvailability(windows: []) } }
+                }
 
-                HStack(spacing: 8) {
-                    availabilityChip("Mañana", window: "morning")
-                    availabilityChip("Tarde", window: "afternoon")
-                    availabilityChip("Noche", window: "evening")
+                if scheduleEnabled {
+                    Text("Te notificaremos solicitudes y eventos cercanos cuya cita caiga dentro de este horario.")
+                        .font(.caption).foregroundStyle(Color.acoInk2)
+
+                    HStack(spacing: 12) {
+                        DatePicker("Desde", selection: $availStart, displayedComponents: .hourAndMinute)
+                            .font(.subheadline)
+                        DatePicker("Hasta", selection: $availEnd, displayedComponents: .hourAndMinute)
+                            .font(.subheadline)
+                    }
+                    .tint(Color.acoStudent)
+
+                    Button {
+                        let window = "\(Self.hourFormatter.string(from: availStart))-\(Self.hourFormatter.string(from: availEnd))"
+                        Task { await saveAvailability(windows: [window]) }
+                    } label: {
+                        Label("Guardar horario", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(Color.acoStudent)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("Sin horario definido: te avisaremos de todas las solicitudes cercanas.")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+                }
+
+                if let availabilityError {
+                    Label(availabilityError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(Color.acoUrgent)
                 }
             }
         }
+        .onAppear { loadScheduleFromStorage() }
     }
 
-    private func availabilityChip(_ label: String, window: String) -> some View {
-        let isOn = myWindows.contains(window)
-        return Button {
-            Task {
-                var windows = myWindows
-                if isOn { windows.remove(window) } else { windows.insert(window) }
-                if let saved = try? await APIClient.shared.updateMyAvailability(Array(windows)) {
-                    savedWindows = saved.joined(separator: ",")
-                    KuidarHaptic.light()
-                }
-            }
-        } label: {
-            Text(label)
-                .font(.subheadline).fontWeight(.semibold)
-                .foregroundStyle(isOn ? Color.acoStudent : Color.acoInk2)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(isOn ? Color.acoStudentSoft : Color(acoHex: "F8F5F1"))
-                .clipShape(.capsule)
-                .overlay {
-                    Capsule().strokeBorder(isOn ? Color.acoStudent : Color.acoHair, lineWidth: isOn ? 1.5 : 1)
-                }
+    private func loadScheduleFromStorage() {
+        guard !didLoadSchedule else { return }
+        if let range = savedWindows.split(separator: ",").map(String.init)
+            .first(where: { $0.contains("-") }),
+           let dash = range.firstIndex(of: "-"),
+           let start = Self.hourFormatter.date(from: String(range[..<dash])),
+           let end = Self.hourFormatter.date(from: String(range[range.index(after: dash)...])) {
+            availStart = start
+            availEnd = end
+            scheduleEnabled = true
+        } else {
+            scheduleEnabled = false
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(label), \(isOn ? "disponible" : "no disponible")")
-        .accessibilityAddTraits(isOn ? .isSelected : [])
+        DispatchQueue.main.async { didLoadSchedule = true }
+    }
+
+    private func saveAvailability(windows: [String]) async {
+        availabilityError = nil
+        do {
+            let saved = try await APIClient.shared.updateMyAvailability(windows)
+            savedWindows = saved.joined(separator: ",")
+            KuidarHaptic.success()
+        } catch {
+            availabilityError = error.localizedDescription
+        }
     }
 
     // MARK: - Tags (intereses para el recomendador de afinidad)
@@ -351,8 +454,9 @@ struct StudentHoursView: View {
                         .foregroundStyle(Color.acoStudent)
                         .keyboardType(.numberPad)
                         .frame(maxWidth: 160)
-                    Text("horas")
+                    Text(horasWord(Int(goalInput) ?? 0))
                         .font(.title2).foregroundStyle(Color.acoInk3)
+                        .animation(.none, value: goalInput)
                 }
 
                 CTAButton(label: "Guardar meta", tint: .acoStudent) {
@@ -463,7 +567,5 @@ struct FlowTags: View {
 }
 
 #Preview {
-    NavigationStack {
-        StudentHoursView()
-    }
+    StudentProfileView(onLogout: {})
 }

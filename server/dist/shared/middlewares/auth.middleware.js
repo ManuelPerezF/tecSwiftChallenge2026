@@ -12,7 +12,7 @@ export function resolveAuthContext(token) {
     if (!user)
         return null;
     const ctx = { id: user.id, name: user.name, email: user.email, role: user.role };
-    if (user.role === "family") {
+    if (user.role === "family" || user.role === "organizer") {
         const member = db
             .prepare("SELECT family_id FROM family_members WHERE user_id = ?")
             .get(user.id);

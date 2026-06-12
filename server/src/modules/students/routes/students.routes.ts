@@ -4,6 +4,7 @@ import { db } from "../../../shared/db/sqlite.js";
 import { NotFoundError, UnauthorizedError, ValidationError } from "../../../shared/errors/appError.js";
 import { requireAuth, requireRole } from "../../../shared/middlewares/auth.middleware.js";
 import { badgesService } from "../../badges/services/badges.service.js";
+import { notificationsService } from "../../notifications/services/notifications.service.js";
 import { ratingsController } from "../../ratings/controllers/ratings.controller.js";
 import { ratingsService } from "../../ratings/services/ratings.service.js";
 
@@ -40,11 +41,13 @@ studentsRouter.put("/me/tags", requireRole("student"), (req, res, next) => {
   }
 });
 
+// Rango "HH:MM-HH:MM" (nuevo) o legacy morning/afternoon/evening
+const windowPattern = /^(morning|afternoon|evening|\d{1,2}:\d{2}-\d{1,2}:\d{2})$/;
 const availabilityBodySchema = z.object({
-  windows: z.array(z.enum(["morning", "afternoon", "evening"])).max(3),
+  windows: z.array(z.string().regex(windowPattern)).max(3),
 });
 
-/** 3.6: el becario declara su disponibilidad (ventanas horarias) para recibir notificaciones. */
+/** 3.6: el becario declara su disponibilidad (rango horario) para recibir notificaciones. */
 studentsRouter.put("/me/availability", requireRole("student"), (req, res, next) => {
   try {
     if (!req.auth?.studentId) throw new UnauthorizedError("Solo estudiantes");
@@ -55,6 +58,10 @@ studentsRouter.put("/me/availability", requireRole("student"), (req, res, next) 
     const windows = [...new Set(parsed.data.windows)];
     db.prepare("UPDATE students SET available_windows = ? WHERE id = ?")
       .run(JSON.stringify(windows), req.auth.studentId);
+
+    // Resumen inmediato: cuántas oportunidades coinciden con el nuevo horario (3+ agrupado)
+    notificationsService.notifyScheduleMatches(req.auth.studentId);
+
     res.json({ windows });
   } catch (error) {
     next(error);

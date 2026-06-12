@@ -9,6 +9,7 @@ struct ElderlyRootView: View {
     let onLogout: () -> Void
     @State private var selectedTab: ElderlyTab = .agenda
     @State private var locationManager = ElderlyLocationUpdater()
+    @State private var showProfile = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -27,8 +28,8 @@ struct ElderlyRootView: View {
                             }
                         }
                         .toolbar {
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoElderly) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
                         }
                 }
             }
@@ -36,28 +37,30 @@ struct ElderlyRootView: View {
                 NavigationStack {
                     ElderlyFamilyView()
                         .toolbar {
+                            ToolbarItem(placement: .topBarLeading) { profileButton }
                             ToolbarItem(placement: .topBarTrailing) { NotificationBellButton(tint: .acoElderly) }
-                            ToolbarItem(placement: .topBarTrailing) { logoutButton }
                         }
                 }
             }
         }
         .tint(.acoElderly)
         .task { locationManager.requestOnce() }
+        .sheet(isPresented: $showProfile) {
+            ElderlyProfileView(onLogout: onLogout)
+        }
     }
 
-    private var logoutButton: some View {
-        Menu {
-            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                onLogout()
-            }
+    /// Perfil arriba a la izquierda (patrón común a todos los roles).
+    private var profileButton: some View {
+        Button {
+            showProfile = true
         } label: {
             Image(systemName: "person.circle")
                 .symbolRenderingMode(.hierarchical)
                 .font(.title3)
                 .foregroundStyle(Color.acoInk2)
         }
-        .accessibilityLabel("Cuenta")
+        .accessibilityLabel("Mi perfil")
     }
 }
 

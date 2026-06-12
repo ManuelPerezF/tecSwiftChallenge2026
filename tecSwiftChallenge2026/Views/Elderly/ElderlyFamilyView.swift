@@ -17,19 +17,6 @@ struct ElderlyFamilyView: View {
         family?.familyCode ?? cachedFamilyCode
     }
 
-    /// Perfil del adulto mayor logueado — no el primero de la familia.
-    private var myProfile: ElderlySummary? {
-        if !myProfileId.isEmpty,
-           let match = family?.elderly.first(where: { $0.id == myProfileId }) {
-            return match
-        }
-        if !userName.isEmpty,
-           let match = family?.elderly.first(where: { $0.firstName == userName }) {
-            return match
-        }
-        return nil
-    }
-
     var body: some View {
         ZStack {
             Color.acoBg.ignoresSafeArea()
@@ -78,14 +65,6 @@ struct ElderlyFamilyView: View {
                     .offset(y: contentVisible ? 0 : 16)
                     .animation(
                         reduceMotion ? .none : .spring(response: 0.55, dampingFraction: 0.86).delay(0.06),
-                        value: contentVisible
-                    )
-
-                profileSection
-                    .opacity(contentVisible ? 1 : 0)
-                    .offset(y: contentVisible ? 0 : 20)
-                    .animation(
-                        reduceMotion ? .none : .spring(response: 0.55, dampingFraction: 0.86).delay(0.1),
                         value: contentVisible
                     )
             }
@@ -140,82 +119,36 @@ struct ElderlyFamilyView: View {
     }
 
     private var howItWorks: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("Cómo funciona")
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Cómo funciona")
+                .font(.title2).bold()
+                .foregroundStyle(Color.acoInk)
+                .accessibilityAddTraits(.isHeader)
 
-            instructionRow(number: "1", text: "Tu familia publica solicitudes desde su app.")
-            instructionRow(number: "2", text: "Las verás en la pestaña **Mis visitas**.")
-            instructionRow(number: "3", text: "Cuando el becario venga, podrás seguirlo en el mapa.")
+            instructionRow(number: "1", text: "Tu familia agenda una visita para ti desde su app.")
+            instructionRow(number: "2", text: "Un becario universitario acepta ayudarte.")
+            instructionRow(number: "3", text: "En cuanto lo acepten, la visita aparece en **Mis visitas** con su nombre y hora.")
+            instructionRow(number: "4", text: "El día de la visita podrás seguirlo en el mapa.")
         }
-    }
-
-    private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("Tu perfil")
-
-            if let profile = myProfile {
-                profileCard(profile)
-            } else {
-                AcoCard {
-                    HStack(spacing: 14) {
-                        AvatarView(name: userName, tint: .acoElderly, size: 48)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(userName.isEmpty ? "Tu perfil" : userName)
-                                .font(.headline)
-                                .foregroundStyle(Color.acoInk)
-                            Text("Completa tu dirección con ayuda de tu familia.")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.acoInk3)
-                        }
-                        Spacer()
-                    }
-                }
-            }
-        }
-    }
-
-    private func profileCard(_ person: ElderlySummary) -> some View {
-        AcoCard(padding: 14) {
-            HStack(spacing: 14) {
-                AvatarView(name: person.firstName, tint: .acoElderly, size: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(person.firstName)
-                        .font(.headline)
-                        .foregroundStyle(Color.acoInk)
-                    if !person.neighborhood.isEmpty {
-                        Text(person.neighborhood)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.acoInk2)
-                    }
-                    if !person.address.isEmpty {
-                        Text(person.address)
-                            .font(.caption)
-                            .foregroundStyle(Color.acoInk3)
-                            .lineLimit(2)
-                    }
-                }
-                Spacer()
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Color.acoDone)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Tu perfil, \(person.firstName), \(person.address), \(person.neighborhood)")
     }
 
     private func instructionRow(number: String, text: LocalizedStringKey) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 14) {
             Text(number)
-                .font(.caption)
+                .font(.body)
                 .fontWeight(.bold)
                 .foregroundStyle(.white)
-                .frame(width: 22, height: 22)
+                .frame(width: 30, height: 30)
                 .background(Color.acoElderly)
                 .clipShape(Circle())
+                .accessibilityHidden(true)
             Text(text)
-                .font(.subheadline)
-                .foregroundStyle(Color.acoInk2)
+                .font(.title3)
+                .foregroundStyle(Color.acoInk)
+                .lineSpacing(2)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Paso \(number)")
     }
 
     private func sectionLabel(_ text: String) -> some View {
@@ -393,6 +326,179 @@ struct ElderlyJoinFamilyForm: View {
                 errorMessage = error.localizedDescription
             }
             isLoading = false
+        }
+    }
+}
+
+// MARK: - Perfil del adulto mayor (icono arriba a la izquierda)
+// Lectura siempre; edición solo si la familia activó `allow_self_profile_edit` (3.16).
+
+struct ElderlyProfileView: View {
+    let onLogout: () -> Void
+
+    @AppStorage("aco_elderlyProfileId") private var myProfileId: String = ""
+    @AppStorage("aco_userName") private var userName: String = ""
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var family: FamilyInfo?
+    @State private var isEditing = false
+    @State private var errorMessage: String?
+
+    /// Perfil del adulto mayor logueado — no el primero de la familia.
+    private var myProfile: ElderlySummary? {
+        if !myProfileId.isEmpty,
+           let match = family?.elderly.first(where: { $0.id == myProfileId }) {
+            return match
+        }
+        if !userName.isEmpty,
+           let match = family?.elderly.first(where: { $0.firstName == userName }) {
+            return match
+        }
+        return nil
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.acoBg.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        header
+
+                        if let profile = myProfile {
+                            infoCard(profile)
+
+                            if profile.selfEditAllowed {
+                                Button {
+                                    isEditing = true
+                                } label: {
+                                    Label("Editar mi perfil", systemImage: "pencil")
+                                        .font(.title3).fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 16)
+                                        .background(Color.acoElderly)
+                                        .clipShape(.rect(cornerRadius: 16))
+                                }
+                                .buttonStyle(.plain)
+                                .sheet(isPresented: $isEditing) {
+                                    ElderlyEditSheet(person: profile, isFamilyEditor: false) {
+                                        await load()
+                                    }
+                                }
+                            } else {
+                                Label("Tu familia administra tu perfil. Pídeles ayuda si quieres cambiar algo.", systemImage: "lock.fill")
+                                    .font(.body)
+                                    .foregroundStyle(Color.acoInk3)
+                            }
+                        } else if let errorMessage {
+                            Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                                .font(.body).foregroundStyle(Color.acoUrgent)
+                        } else {
+                            ProgressView("Cargando…").tint(Color.acoElderly)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        logoutSection
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 40)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Mi perfil")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cerrar") { dismiss() }
+                        .foregroundStyle(Color.acoInk3)
+                }
+            }
+        }
+        .task { await load() }
+    }
+
+    private var header: some View {
+        VStack(spacing: 10) {
+            AvatarView(name: myProfile?.firstName ?? userName, tint: .acoElderly, size: 84)
+            Text(myProfile?.firstName ?? userName)
+                .font(.title).bold()
+                .foregroundStyle(Color.acoInk)
+            if let age = myProfile?.age {
+                Text("\(age) años")
+                    .font(.title3)
+                    .foregroundStyle(Color.acoInk2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 16)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func infoCard(_ profile: ElderlySummary) -> some View {
+        AcoCard {
+            VStack(alignment: .leading, spacing: 14) {
+                infoRow(icon: "house.fill", label: "Dirección",
+                        value: profile.address.isEmpty ? "Sin registrar" : profile.address)
+                Divider()
+                infoRow(icon: "mappin.and.ellipse", label: "Colonia",
+                        value: profile.neighborhood.isEmpty ? "Sin registrar" : profile.neighborhood)
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Mis gustos", systemImage: "heart.fill")
+                        .font(.body).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoElderly)
+                    if profile.tagList.isEmpty {
+                        Text("Aún no hay gustos registrados.")
+                            .font(.body).foregroundStyle(Color.acoInk3)
+                    } else {
+                        FlowTags(tags: profile.tagList, tint: .acoElderly)
+                    }
+                }
+            }
+        }
+    }
+
+    private func infoRow(icon: String, label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(Color.acoElderly)
+                .frame(width: 26)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.subheadline).foregroundStyle(Color.acoInk3)
+                Text(value)
+                    .font(.title3).foregroundStyle(Color.acoInk)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
+    }
+
+    private var logoutSection: some View {
+        Button(role: .destructive) {
+            dismiss()
+            onLogout()
+        } label: {
+            Label("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.title3).fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
+        .padding(.top, 12)
+    }
+
+    private func load() async {
+        errorMessage = nil
+        do {
+            family = try await APIClient.shared.fetchMyFamily()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }

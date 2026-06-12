@@ -45,8 +45,12 @@ struct OrganizerRootView: View {
         .tint(.acoFamily)
     }
 
+    @AppStorage("aco_userName") private var userName: String = ""
+
+    /// Perfil arriba a la izquierda (patrón común a todos los roles).
     private var logoutButton: some View {
         Menu {
+            Text(userName.isEmpty ? "Organizador" : userName)
             Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                 onLogout()
             }
@@ -56,7 +60,7 @@ struct OrganizerRootView: View {
                 .font(.title3)
                 .foregroundStyle(Color.acoInk2)
         }
-        .accessibilityLabel("Cuenta")
+        .accessibilityLabel("Mi perfil")
     }
 }
 

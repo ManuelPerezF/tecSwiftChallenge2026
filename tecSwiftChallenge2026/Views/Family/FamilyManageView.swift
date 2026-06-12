@@ -9,6 +9,7 @@ struct FamilyManageView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var didCopy = false
+    @State private var editingElderly: ElderlySummary?
 
     private var displayCode: String {
         family?.familyCode ?? cachedFamilyCode
@@ -30,6 +31,11 @@ struct FamilyManageView: View {
         .navigationBarTitleDisplayMode(.large)
         .task { await load() }
         .refreshable { await load() }
+        .sheet(item: $editingElderly) { person in
+            ElderlyEditSheet(person: person) {
+                await load()
+            }
+        }
     }
 
     // MARK: - Content
@@ -148,23 +154,37 @@ struct FamilyManageView: View {
     }
 
     private func elderlyCard(_ person: ElderlySummary) -> some View {
-        AcoCard(padding: 14) {
-            HStack(spacing: 14) {
-                AvatarView(name: person.firstName, tint: .acoElderly, size: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(person.firstName)
-                        .font(.headline).foregroundStyle(Color.acoInk)
-                    Text(person.neighborhood)
-                        .font(.subheadline).foregroundStyle(Color.acoInk2)
-                    Text(person.address)
-                        .font(.caption).foregroundStyle(Color.acoInk3)
-                        .lineLimit(1)
+        Button {
+            editingElderly = person
+        } label: {
+            AcoCard(padding: 14) {
+                HStack(spacing: 14) {
+                    AvatarView(name: person.firstName, tint: .acoElderly, size: 48)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(person.firstName)
+                                .font(.headline).foregroundStyle(Color.acoInk)
+                            if let age = person.age {
+                                Text("\(age) años")
+                                    .font(.caption).foregroundStyle(Color.acoInk3)
+                            }
+                        }
+                        Text(person.neighborhood)
+                            .font(.subheadline).foregroundStyle(Color.acoInk2)
+                        Text(person.address)
+                            .font(.caption).foregroundStyle(Color.acoInk3)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Color.acoInk3)
+                        .accessibilityHidden(true)
                 }
-                Spacer()
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Color.acoDone)
             }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Editar perfil de \(person.firstName)")
     }
 
     private func instructionRow(number: String, text: LocalizedStringKey) -> some View {
@@ -237,6 +257,142 @@ struct FamilyManageView: View {
             errorMessage = error.localizedDescription
         }
         isLoading = false
+    }
+}
+
+// MARK: - 3.12/3.16: Edición de perfil del adulto mayor + control parental
+
+struct ElderlyEditSheet: View {
+    let person: ElderlySummary
+    /// false cuando edita el propio adulto mayor: oculta y no envía los flags de control parental.
+    var isFamilyEditor: Bool = true
+    var onSaved: () async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var address: String
+    @State private var neighborhood: String
+    @State private var ageText: String
+    @State private var tags: [String]
+    @State private var newTag = ""
+    @State private var allowSocial: Bool
+    @State private var allowSelfEdit: Bool
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    init(person: ElderlySummary, isFamilyEditor: Bool = true, onSaved: @escaping () async -> Void) {
+        self.person = person
+        self.isFamilyEditor = isFamilyEditor
+        self.onSaved = onSaved
+        _address = State(initialValue: person.address)
+        _neighborhood = State(initialValue: person.neighborhood)
+        _ageText = State(initialValue: person.age.map(String.init) ?? "")
+        _tags = State(initialValue: person.tagList)
+        _allowSocial = State(initialValue: person.socialAllowed)
+        _allowSelfEdit = State(initialValue: person.selfEditAllowed)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Datos de \(person.firstName)") {
+                    TextField("Dirección", text: $address)
+                    TextField("Colonia", text: $neighborhood)
+                    TextField("Edad", text: $ageText)
+                        .keyboardType(.numberPad)
+                }
+
+                Section {
+                    ForEach(tags, id: \.self) { tag in
+                        Label(tag, systemImage: "tag.fill")
+                            .foregroundStyle(Color.acoInk2)
+                    }
+                    .onDelete { tags.remove(atOffsets: $0) }
+
+                    HStack {
+                        TextField("Agregar gusto o interés", text: $newTag)
+                            .onSubmit(addTag)
+                        Button(action: addTag) {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Color.acoFamily)
+                        }
+                        .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .accessibilityLabel("Agregar interés")
+                    }
+                } header: {
+                    Text("Gustos e intereses")
+                } footer: {
+                    Text("Estos datos ayudan a recomendarle eventos y compañía afín.")
+                }
+
+                if isFamilyEditor {
+                    Section {
+                        Toggle("Permitir conocer gente y chatear", isOn: $allowSocial)
+                        Toggle("Puede editar su propio perfil", isOn: $allowSelfEdit)
+                    } header: {
+                        Text("Control parental")
+                    } footer: {
+                        Text("Si desactivas la primera opción, \(person.firstName) no aparecerá en recomendaciones de conexión ni podrá iniciar o recibir chats nuevos.")
+                    }
+                }
+
+                if let errorMessage {
+                    Section {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(Color.acoUrgent)
+                    }
+                }
+            }
+            .tint(Color.acoFamily)
+            .navigationTitle("Editar perfil")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { dismiss() }
+                        .foregroundStyle(Color.acoInk3)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Text("Guardar").bold()
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
+        }
+    }
+
+    private func addTag() {
+        let tag = newTag.trimmingCharacters(in: .whitespaces)
+        guard !tag.isEmpty, !tags.contains(tag) else { return }
+        withAnimation(.easeOut(duration: 0.15)) { tags.append(tag) }
+        newTag = ""
+    }
+
+    private func save() async {
+        isSaving = true
+        errorMessage = nil
+        do {
+            _ = try await APIClient.shared.updateElderly(
+                id: person.id,
+                address: address.trimmingCharacters(in: .whitespaces),
+                neighborhood: neighborhood.trimmingCharacters(in: .whitespaces),
+                age: Int(ageText.trimmingCharacters(in: .whitespaces)),
+                tags: tags,
+                allowSocialConnections: isFamilyEditor ? allowSocial : nil,
+                allowSelfProfileEdit: isFamilyEditor ? allowSelfEdit : nil
+            )
+            await onSaved()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isSaving = false
     }
 }
 

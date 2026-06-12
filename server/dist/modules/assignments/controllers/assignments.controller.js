@@ -64,9 +64,51 @@ export const assignmentsController = {
             next(error);
         }
     },
+    confirmCompletion(req, res, next) {
+        try {
+            res.json(assignmentsService.confirmCompletion(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     cancelar(req, res, next) {
         try {
             res.json(assignmentsService.cancelar(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    cancelarPorEstudiante(req, res, next) {
+        try {
+            res.json(assignmentsService.cancelByStudent(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    proposeChange(req, res, next) {
+        try {
+            const { scheduledDate } = req.body;
+            res.status(201).json(assignmentsService.proposeChange(req.auth, req.params.id, scheduledDate ?? ""));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    getPendingProposal(req, res, next) {
+        try {
+            res.json(assignmentsService.getPendingProposal(req.auth, req.params.id));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    respondToProposal(req, res, next) {
+        try {
+            const { accept } = req.body;
+            res.json(assignmentsService.respondToProposal(req.auth, req.params.id, accept === true));
         }
         catch (error) {
             next(error);

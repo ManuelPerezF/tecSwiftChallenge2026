@@ -59,6 +59,32 @@ function timeWindow(dateISO: string): "morning" | "afternoon" | "evening" {
   return "evening";
 }
 
+/**
+ * ¿La cita cae dentro de la disponibilidad declarada del becario?
+ * Soporta dos formatos por elemento (mezclables):
+ *  - Rango real "HH:MM-HH:MM" (nuevo, incluye rangos nocturnos tipo 22:00-02:00)
+ *  - Legacy "morning" | "afternoon" | "evening"
+ * Sin disponibilidad declarada = siempre disponible.
+ */
+function isAvailableAt(windows: string[], dateISO: string): boolean {
+  if (windows.length === 0) return true;
+  const date = new Date(dateISO);
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  const legacy = timeWindow(dateISO);
+
+  return windows.some((w) => {
+    const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(w);
+    if (m) {
+      const start = Number(m[1]) * 60 + Number(m[2]);
+      const end = Number(m[3]) * 60 + Number(m[4]);
+      return end >= start
+        ? minutes >= start && minutes <= end
+        : minutes >= start || minutes <= end; // rango que cruza medianoche
+    }
+    return w === legacy;
+  });
+}
+
 function parseWindows(raw: string): string[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -161,12 +187,10 @@ export const notificationsService = {
     } | undefined;
     if (!request || (request.latitude === 0 && request.longitude === 0)) return;
 
-    const window = timeWindow(request.scheduled_date);
-
     for (const student of studentsWithLocation()) {
       if (student.blocked) continue;
       // (b) dentro de la disponibilidad declarada (sin declarar = disponible)
-      if (student.windows.length > 0 && !student.windows.includes(window)) continue;
+      if (!isAvailableAt(student.windows, request.scheduled_date)) continue;
       // (a) dentro del radio
       const dist = distanceMeters(student.lat, student.lng, request.latitude, request.longitude);
       if (dist > NEARBY_RADIUS_KM * 1000) continue;
@@ -196,12 +220,10 @@ export const notificationsService = {
     } | undefined;
     if (!event || (event.latitude === 0 && event.longitude === 0)) return;
 
-    const window = timeWindow(event.scheduled_date);
-
     // Becarios cercanos + disponibles
     for (const student of studentsWithLocation()) {
       if (student.blocked) continue;
-      if (student.windows.length > 0 && !student.windows.includes(window)) continue;
+      if (!isAvailableAt(student.windows, event.scheduled_date)) continue;
       const dist = distanceMeters(student.lat, student.lng, event.latitude, event.longitude);
       if (dist > NEARBY_RADIUS_KM * 1000) continue;
 
@@ -251,5 +273,49 @@ export const notificationsService = {
         );
       }
     }
+  },
+
+  /**
+   * Resumen agrupado al declarar disponibilidad: cuenta solicitudes/eventos
+   * abiertos, cercanos y dentro del horario del becario. Si hay más de 3 se
+   * agrupa como "3+" en una sola notificación.
+   */
+  notifyScheduleMatches(studentId: string): void {
+    const student = studentsWithLocation().find((s) => s.studentId === studentId);
+    if (!student || student.blocked) return;
+
+    const rows = db.prepare(`
+      SELECT id, scheduled_date, latitude, longitude, is_community_event
+      FROM activity_requests WHERE status = 'open'
+    `).all() as Array<{
+      id: string; scheduled_date: string; latitude: number; longitude: number; is_community_event: number;
+    }>;
+
+    let events = 0;
+    let services = 0;
+    for (const r of rows) {
+      if (r.latitude === 0 && r.longitude === 0) continue;
+      if (!isAvailableAt(student.windows, r.scheduled_date)) continue;
+      if (distanceMeters(student.lat, student.lng, r.latitude, r.longitude) > NEARBY_RADIUS_KM * 1000) continue;
+      if (r.is_community_event === 1) events += 1; else services += 1;
+    }
+
+    const total = events + services;
+    if (total === 0) return;
+
+    const label = total > 3 ? "3+" : String(total);
+    const noun =
+      events > 0 && services > 0 ? "eventos y servicios"
+      : events > 0 ? (events === 1 && total <= 3 ? "evento" : "eventos")
+      : (services === 1 && total <= 3 ? "servicio" : "servicios");
+    const verb = total === 1 ? "encontrado" : "encontrados";
+
+    this.create(
+      student.userId,
+      "schedule_matches",
+      `${label} ${noun} en tu horario`,
+      `${label} ${noun} ${verb} cerca de ti y dentro de tu disponibilidad. Échales un ojo en el mapa.`,
+      { count: String(total) },
+    );
   },
 };

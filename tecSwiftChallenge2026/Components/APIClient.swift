@@ -89,6 +89,27 @@ final class APIClient {
         try await post(path: "families/join", body: ["code": code.trimmingCharacters(in: .whitespaces).uppercased()])
     }
 
+    /// 3.12/3.16 — edita el perfil del adulto mayor (familia dueña, o él mismo si tiene permiso).
+    /// Solo envía los campos no-nil; los flags de control parental solo los puede mandar la familia.
+    func updateElderly(
+        id: String,
+        address: String? = nil,
+        neighborhood: String? = nil,
+        age: Int? = nil,
+        tags: [String]? = nil,
+        allowSocialConnections: Bool? = nil,
+        allowSelfProfileEdit: Bool? = nil
+    ) async throws -> ElderlySummary {
+        var body: [String: Any] = [:]
+        if let address { body["address"] = address }
+        if let neighborhood { body["neighborhood"] = neighborhood }
+        if let age { body["age"] = age }
+        if let tags { body["tags"] = tags }
+        if let allowSocialConnections { body["allowSocialConnections"] = allowSocialConnections }
+        if let allowSelfProfileEdit { body["allowSelfProfileEdit"] = allowSelfProfileEdit }
+        return try await patch(path: "families/elderly/\(id)", body: body)
+    }
+
     // MARK: - Solicitudes
 
     /// Solicitudes de mi familia (rol familiar)
@@ -407,6 +428,14 @@ final class APIClient {
     private func post<T: Decodable>(path: String, body: [String: Any], authorized: Bool = true) async throws -> T {
         var req = request(path: path, method: "POST")
         if !authorized { req.setValue(nil, forHTTPHeaderField: "Authorization") }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validate(response, data: data)
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func patch<T: Decodable>(path: String, body: [String: Any]) async throws -> T {
+        var req = request(path: path, method: "PATCH")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
         try validate(response, data: data)
