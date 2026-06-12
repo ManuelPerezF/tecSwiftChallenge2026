@@ -32,6 +32,7 @@ struct StudentMapView: View {
     @State private var filterActivity: ActivityType? = nil
     @State private var didCenterOnCurrentLocation = false
     @State private var mapError: String?
+    @State private var isLoadingRequests: Bool = false
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(center: fallbackCenter, span: overviewSpan)
     )
@@ -75,6 +76,7 @@ struct StudentMapView: View {
                 MapBottomSheet(
                     filteredRequests: filteredRequests,
                     selectedId: $selectedId,
+                    isLoading: isLoadingRequests,
                     onSelect: { req in
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                             position = .region(MKCoordinateRegion(center: req.coordinate, span: detailSpan))
@@ -133,6 +135,7 @@ struct StudentMapView: View {
 
     private func loadRequests() async {
         mapError = nil
+        isLoadingRequests = true
         do {
             let apiRequests = try await APIClient.shared.fetchOpenRequests()
             let lat = locationManager.coordinate?.latitude
@@ -145,6 +148,7 @@ struct StudentMapView: View {
         } catch {
             mapError = error.localizedDescription
         }
+        isLoadingRequests = false
     }
 
     // MARK: Filter bar
@@ -195,12 +199,8 @@ struct StudentMapView: View {
             .scrollIndicators(.hidden)
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(Color.white.opacity(0.55), lineWidth: 1)
-        }
-        .shadow(color: Color.acoStudent.opacity(0.12), radius: 14, x: 0, y: 5)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.08), radius: 14, x: 0, y: 5)
     }
 }
 
@@ -285,53 +285,150 @@ private struct MapPinButton: View {
 private struct MapBottomSheet: View {
     let filteredRequests: [OpenRequest]
     @Binding var selectedId: String
+    let isLoading: Bool
     let onSelect: (OpenRequest) -> Void
 
+    @State private var listAppeared: Bool = false
+
+    private var sorted: [OpenRequest] {
+        filteredRequests.sorted { $0.matchScore > $1.matchScore }
+    }
     private var selected: OpenRequest? {
         filteredRequests.first { $0.id == selectedId }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 999)
-                .fill(Color(acoHex: "3C3228").opacity(0.18))
-                .frame(width: 40, height: 5)
-                .padding(.top, 10).padding(.bottom, 4)
+            // Drag handle
+            Capsule()
+                .fill(Color(acoHex: "3C3228").opacity(0.15))
+                .frame(width: 36, height: 4)
+                .padding(.top, 12).padding(.bottom, 6)
 
-            if let req = selected {
+            // Selected callout
+            if let req = selected, !isLoading {
                 NavigationLink(value: req) { SelectedRequestCallout(request: req) }
                     .buttonStyle(.plain)
-                    .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 4)
+                    .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 2)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
+            // Sort label
             HStack(spacing: 5) {
-                Image(systemName: "sparkles").font(.caption).foregroundStyle(Color.acoStudent)
+                Image(systemName: "sparkles").font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Color.acoStudent)
                 Text("Ordenado por distancia y afinidad contigo")
-                    .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk3)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(Color.acoInk3)
             }
-            .padding(.horizontal, 18).padding(.top, 6)
+            .padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
+            // List
             ScrollView {
-                VStack(spacing: 9) {
-                    ForEach(filteredRequests.sorted { $0.matchScore > $1.matchScore }) { req in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) { selectedId = req.id }
-                            onSelect(req)
-                        } label: {
-                            RankedRow(request: req, isSelected: req.id == selectedId)
+                VStack(spacing: 8) {
+                    if isLoading {
+                        ForEach(0..<4, id: \.self) { _ in SkeletonRow() }
+                    } else if sorted.isEmpty {
+                        EmptyRequestsState()
+                    } else {
+                        ForEach(Array(sorted.enumerated()), id: \.element.id) { index, req in
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) {
+                                    selectedId = req.id
+                                }
+                                onSelect(req)
+                            } label: {
+                                RankedRow(request: req, isSelected: req.id == selectedId)
+                            }
+                            .buttonStyle(.plain)
+                            .offset(y: listAppeared ? 0 : 28)
+                            .opacity(listAppeared ? 1 : 0)
+                            .animation(
+                                .spring(response: 0.42, dampingFraction: 0.78)
+                                .delay(Double(index) * 0.055),
+                                value: listAppeared
+                            )
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 100)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 110)
             }
             .scrollIndicators(.hidden)
-            .frame(maxHeight: 220)
+            .frame(maxHeight: 240)
         }
-        .background(Color.acoBg)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0,
-                                          bottomTrailingRadius: 0, topTrailingRadius: 24))
-        .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
+        .glassEffect(
+            .regular,
+            in: UnevenRoundedRectangle(
+                topLeadingRadius: 26, bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0, topTrailingRadius: 26
+            )
+        )
+        .shadow(color: .black.opacity(0.08), radius: 20, y: -8)
+        .onChange(of: isLoading) { _, loading in
+            if !loading {
+                listAppeared = false
+                withAnimation { listAppeared = true }
+            }
+        }
+        .onAppear {
+            if !isLoading {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation { listAppeared = true }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Empty state
+
+private struct EmptyRequestsState: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "map.circle")
+                .font(.system(size: 36))
+                .foregroundStyle(Color.acoStudent.opacity(0.4))
+                .accessibilityHidden(true)
+            Text("Sin solicitudes en esta área")
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundStyle(Color.acoInk2)
+            Text("Prueba quitando el filtro o regresa más tarde.")
+                .font(.caption).foregroundStyle(Color.acoInk3)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.vertical, 28)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Skeleton row
+
+private struct SkeletonRow: View {
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.acoStudentSoft)
+                .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.acoStudentSoft)
+                    .frame(height: 12).frame(maxWidth: .infinity)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(acoHex: "E8E0D6"))
+                    .frame(height: 10).frame(maxWidth: 140, alignment: .leading)
+            }
+            Spacer()
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.acoStudentSoft)
+                .frame(width: 36, height: 28)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 12)
+        .background(Color.white.opacity(0.55), in: .rect(cornerRadius: 14))
+        .redacted(reason: .placeholder)
+        .shimmering()
     }
 }
 
@@ -341,44 +438,70 @@ private struct SelectedRequestCallout: View {
     let request: OpenRequest
 
     var body: some View {
-        AcoCard(padding: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 13)
-                        .fill(Color.acoStudentSoft).frame(width: 48, height: 48)
-                    Image(systemName: request.activityType.symbolName)
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.acoStudent)
+        HStack(spacing: 14) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(request.isUrgent ? Color.acoUrgent.opacity(0.12) : Color.acoStudentSoft)
+                    .frame(width: 52, height: 52)
+                Image(systemName: request.activityType.symbolName)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(request.isUrgent ? Color.acoUrgent : Color.acoStudent)
+                    .accessibilityHidden(true)
+            }
+
+            // Info
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(request.title)
+                        .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                        .lineLimit(1)
+                    if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin.circle.fill")
+                        .font(.system(size: 10)).foregroundStyle(Color.acoInk3)
                         .accessibilityHidden(true)
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(request.title)
-                            .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
-                        if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
+                    Text(request.neighborhood)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
+                    if !request.distance.isEmpty {
+                        Text("·").font(.caption).foregroundStyle(Color.acoInk3)
+                        Text(request.distance)
+                            .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoStudent)
                     }
-                    HStack(spacing: 4) {
-                        Label(request.neighborhood, systemImage: "mappin.circle.fill")
-                            .font(.caption).foregroundStyle(Color.acoInk2)
-                        if !request.distance.isEmpty {
-                            Text("·").font(.caption).foregroundStyle(Color.acoInk3)
-                            Text(request.distance)
-                                .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk2)
-                        }
-                    }
-                    Label("\(request.timeWindow.shortLabel) · \(request.duration)", systemImage: "clock")
-                        .font(.caption).foregroundStyle(Color.acoInk3)
                 }
-                Spacer()
-                VStack(spacing: 1) {
-                    Text("+\(hoursFormatted(request.hours))")
-                        .font(.title3).fontWeight(.heavy).foregroundStyle(Color.acoStudent)
-                    Text("horas").font(.caption2).fontWeight(.semibold).foregroundStyle(Color.acoInk3)
+                HStack(spacing: 4) {
+                    Image(systemName: "clock").font(.system(size: 10)).foregroundStyle(Color.acoInk3)
+                        .accessibilityHidden(true)
+                    Text(request.scheduledDateFormatted)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
+                    Text("·").font(.caption).foregroundStyle(Color.acoInk3)
+                    Text(request.duration)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
                 }
             }
+
+            Spacer()
+
+            // Hours badge
+            VStack(spacing: 0) {
+                Text("+\(hoursFormatted(request.hours))")
+                    .font(.system(size: 20, weight: .black)).foregroundStyle(Color.acoStudent)
+                Text("horas").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.acoInk3)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(Color.acoStudentSoft)
+            .clipShape(.rect(cornerRadius: 12))
         }
+        .padding(14)
+        .background(.thinMaterial, in: .rect(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(Color.acoStudent.opacity(0.22), lineWidth: 1.5)
+        }
+        .shadow(color: Color.acoStudent.opacity(0.06), radius: 10, y: 3)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.timeWindow.shortLabel), \(hoursFormatted(request.hours)) horas de servicio\(request.isUrgent ? ", urgente" : "")")
+        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.scheduledDateFormatted), \(hoursFormatted(request.hours)) horas de servicio\(request.isUrgent ? ", urgente" : "")")
         .accessibilityHint("Toca para ver detalles")
     }
 }
@@ -391,23 +514,27 @@ private struct RankedRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
+            // Icon
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.acoStudent.opacity(0.12) : Color.acoStudentSoft)
-                    .frame(width: 40, height: 40)
+                RoundedRectangle(cornerRadius: 11)
+                    .fill(isSelected ? Color.acoStudent.opacity(0.13) : Color.acoStudentSoft)
+                    .frame(width: 44, height: 44)
                 Image(systemName: request.activityType.symbolName)
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.acoStudent)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(isSelected ? Color.acoStudent : Color.acoStudent.opacity(0.75))
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+
+            // Info
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
                     Text(request.title)
                         .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(Color.acoInk).lineLimit(1)
+                        .foregroundStyle(isSelected ? Color.acoInk : Color.acoInk)
+                        .lineLimit(1)
                     if request.isUrgent {
                         Image(systemName: "exclamationmark.circle.fill")
-                            .font(.caption)
+                            .font(.system(size: 11))
                             .foregroundStyle(Color.acoUrgent)
                             .accessibilityHidden(true)
                     }
@@ -418,40 +545,52 @@ private struct RankedRow: View {
                     if !request.distance.isEmpty {
                         Text("·").font(.caption).foregroundStyle(Color.acoInk3)
                         Text(request.distance)
-                            .font(.caption).fontWeight(.medium).foregroundStyle(Color.acoInk2)
+                            .font(.caption).fontWeight(.medium).foregroundStyle(Color.acoStudent)
                     }
                     Text("·").font(.caption).foregroundStyle(Color.acoInk3)
-                    Text(request.timeWindow.shortLabel)
+                    Text(request.scheduledDateFormatted)
                         .font(.caption).foregroundStyle(Color.acoInk2)
+                        .lineLimit(1)
                 }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+
+            Spacer(minLength: 4)
+
+            // Right side: hours + match
+            VStack(alignment: .trailing, spacing: 5) {
                 Text("+\(hoursFormatted(request.hours)) h")
                     .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoStudent)
                 HStack(spacing: 3) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 9))
+                        .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(Color.acoStudent)
                         .accessibilityHidden(true)
                     Text("\(request.matchScore)%")
-                        .font(.caption2).fontWeight(.bold).foregroundStyle(Color.acoStudent)
+                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Color.acoStudent)
                 }
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .background(Color.acoStudentSoft).clipShape(.rect(cornerRadius: 6))
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(Color.acoStudentSoft)
+                .clipShape(.rect(cornerRadius: 6))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 12)
-        .frame(minHeight: 64)
-        .background(isSelected ? Color.acoStudentSoft : Color.white)
-        .clipShape(.rect(cornerRadius: 14))
+        .padding(.horizontal, 13).padding(.vertical, 11)
+        .frame(minHeight: 66)
+        .background(
+            isSelected
+                ? Color.acoStudent.opacity(0.10)
+                : Color.white.opacity(0.55),
+            in: .rect(cornerRadius: 15)
+        )
         .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(isSelected ? Color.acoStudent : Color(acoHex: "3C3228").opacity(0.05),
-                              lineWidth: isSelected ? 1.5 : 1)
+            RoundedRectangle(cornerRadius: 15)
+                .strokeBorder(
+                    isSelected ? Color.acoStudent.opacity(0.40) : Color.white.opacity(0.35),
+                    lineWidth: isSelected ? 1.5 : 1
+                )
         }
+        .shadow(color: isSelected ? Color.acoStudent.opacity(0.06) : .clear, radius: 6, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.timeWindow.shortLabel), \(hoursFormatted(request.hours)) horas, \(request.matchScore) por ciento de compatibilidad\(request.isUrgent ? ", urgente" : "")")
+        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.scheduledDateFormatted), \(hoursFormatted(request.hours)) horas, \(request.matchScore) por ciento de compatibilidad\(request.isUrgent ? ", urgente" : "")")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -462,6 +601,39 @@ private func hoursFormatted(_ h: Double) -> String {
     h.truncatingRemainder(dividingBy: 1) == 0
         ? String(format: "%.0f", h)
         : String(format: "%.1f", h)
+}
+
+// MARK: - Shimmer modifier (skeleton loading)
+
+private struct ShimmerModifier: ViewModifier {
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                GeometryReader { geo in
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: .clear,                              location: max(0, phase - 0.25)),
+                            .init(color: Color.white.opacity(0.55),           location: phase),
+                            .init(color: .clear,                              location: min(1, phase + 0.25)),
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                    phase = 1.3
+                }
+            }
+    }
+}
+
+private extension View {
+    func shimmering() -> some View { modifier(ShimmerModifier()) }
 }
 
 #Preview {

@@ -240,37 +240,260 @@ if (badgeCount.n === 0) {
   for (const b of badgeSeed) insertBadge.run(uuidv4(), b.slug, b.title, b.description, b.icon);
 }
 
-const userCount = db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
-if (userCount.n === 0) {
-  const demoPassword = process.env.DEMO_PASSWORD ?? "demo123";
+// ── Demo seed helpers ─────────────────────────────────────────────
+
+function scheduledISO(daysFromNow: number, hour: number, minute = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  d.setHours(hour, minute, 0, 0);
+  return d.toISOString();
+}
+
+const insertRequest = db.prepare(`
+  INSERT INTO activity_requests
+    (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, status, latitude, longitude, duration_minutes)
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+`);
+
+interface ElderlySeed {
+  email: string;
+  name: string;
+  firstName: string;
+  address: string;
+  neighborhood: string;
+  lat: number;
+  lng: number;
+  requests: Array<{
+    activityType: string;
+    details: string;
+    daysFromNow: number;
+    hour: number;
+    urgent?: boolean;
+    durationMinutes?: number;
+  }>;
+}
+
+interface FamilySeed {
+  familyName: string;
+  familyCode: string;
+  familyEmail: string;
+  familyUserName: string;
+  elderly: ElderlySeed[];
+}
+
+const DEMO_FAMILIES: FamilySeed[] = [
+  {
+    familyName: "Familia García",
+    familyCode: "KUIDAR",
+    familyEmail: "familia@kuidar.app",
+    familyUserName: "María García",
+    elderly: [
+      {
+        email: "adulto@kuidar.app",
+        name: "Don Roberto",
+        firstName: "Don Roberto",
+        address: "Av. Coyoacán 1435",
+        neighborhood: "Del Valle",
+        lat: 19.3826,
+        lng: -99.1677,
+        requests: [
+          { activityType: "citas", details: "Acompañarlo al cardiólogo en el hospital ABC. Llevar carpeta de estudios.", daysFromNow: 0, hour: 10, urgent: true, durationMinutes: 120 },
+          { activityType: "mandados", details: "Mandado al super Sanborns. Ayuda cargando bolsas (3er piso sin elevador).", daysFromNow: 1, hour: 11, durationMinutes: 60 },
+          { activityType: "compania", details: "Tarde de plática y dominó. Le gusta hablar de fútbol.", daysFromNow: 3, hour: 17, durationMinutes: 90 },
+        ],
+      },
+      {
+        email: "carmen@kuidar.app",
+        name: "Doña Carmen",
+        firstName: "Doña Carmen",
+        address: "Calz. de Tlalpan 480, int. 2",
+        neighborhood: "Del Valle",
+        lat: 19.3788,
+        lng: -99.1721,
+        requests: [
+          { activityType: "medicamento", details: "Recoger receta en farmacia del hospital y entregarla en casa.", daysFromNow: 0, hour: 9, urgent: true, durationMinutes: 30 },
+          { activityType: "tecnologia", details: "Configurar videollamada con sus nietos por WhatsApp.", daysFromNow: 2, hour: 16, durationMinutes: 45 },
+        ],
+      },
+    ],
+  },
+  {
+    familyName: "Familia Martínez",
+    familyCode: "MARTNZ",
+    familyEmail: "martinez@kuidar.app",
+    familyUserName: "Ana Martínez",
+    elderly: [
+      {
+        email: "jorge@kuidar.app",
+        name: "Don Jorge",
+        firstName: "Don Jorge",
+        address: "Calle Pitágoras 812",
+        neighborhood: "Narvarte",
+        lat: 19.4002,
+        lng: -99.1578,
+        requests: [
+          { activityType: "mandados", details: "Ayuda con mandado al mercado Coyoacán. Vive en planta baja.", daysFromNow: 1, hour: 15, durationMinutes: 60 },
+          { activityType: "hogar", details: "Cambiar focos del comedor y revisar enchufes sueltos.", daysFromNow: 4, hour: 10, durationMinutes: 120 },
+        ],
+      },
+      {
+        email: "elena@kuidar.app",
+        name: "Doña Elena",
+        firstName: "Doña Elena",
+        address: "Av. Universidad 1778",
+        neighborhood: "Narvarte",
+        lat: 19.4035,
+        lng: -99.1545,
+        requests: [
+          { activityType: "citas", details: "Acompañarla a consulta de oftalmología. Llegar 20 min antes.", daysFromNow: 2, hour: 8, urgent: true, durationMinutes: 120 },
+          { activityType: "compania", details: "Leer el periódico en voz alta y paseo corto en el parque.", daysFromNow: 5, hour: 18, durationMinutes: 90 },
+        ],
+      },
+    ],
+  },
+  {
+    familyName: "Familia López",
+    familyCode: "LOPEZ8",
+    familyEmail: "lopez@kuidar.app",
+    familyUserName: "Patricia López",
+    elderly: [
+      {
+        email: "alberto@kuidar.app",
+        name: "Don Alberto",
+        firstName: "Don Alberto",
+        address: "Monterrey 194, Roma Sur",
+        neighborhood: "Roma Sur",
+        lat: 19.4088,
+        lng: -99.164,
+        requests: [
+          { activityType: "tecnologia", details: "Enseñarle a usar la app del banco en su tablet.", daysFromNow: 1, hour: 11, durationMinutes: 45 },
+          { activityType: "mandados", details: "Recoger paquetería en estafeta y subirla al departamento.", daysFromNow: 0, hour: 14, durationMinutes: 60 },
+        ],
+      },
+      {
+        email: "lupita@kuidar.app",
+        name: "Doña Lupita",
+        firstName: "Doña Lupita",
+        address: "Álvaro Obregón 286",
+        neighborhood: "Roma Norte",
+        lat: 19.4155,
+        lng: -99.1625,
+        requests: [
+          { activityType: "compania", details: "Acompañarla a misa dominical y desayuno después.", daysFromNow: 6, hour: 9, durationMinutes: 90 },
+          { activityType: "medicamento", details: "Comprar vitaminas recetadas en farmacia San Pablo.", daysFromNow: 3, hour: 12, urgent: true, durationMinutes: 30 },
+          { activityType: "hogar", details: "Ayuda ordenando el closet y etiquetar medicinas.", daysFromNow: 7, hour: 10, durationMinutes: 120 },
+        ],
+      },
+    ],
+  },
+];
+
+function seedFamilyBundle(
+  demoPassword: string,
+  bundle: FamilySeed,
+  universityId: string,
+  alsoSeedStudent: boolean,
+): void {
   const insertUser = db.prepare(
     "INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)",
   );
 
-  // Familiar demo + familia
-  const familyUserId = uuidv4();
-  insertUser.run(familyUserId, "familia@kuidar.app", hashPassword(demoPassword), "María García", "family");
+  const existingFamily = db
+    .prepare("SELECT id FROM families WHERE family_code = ?")
+    .get(bundle.familyCode) as { id: string } | undefined;
 
-  const familyId = uuidv4();
-  db.prepare("INSERT INTO families (id, name, family_code) VALUES (?, ?, ?)")
-    .run(familyId, "Familia García", "KUIDAR");
-  db.prepare("INSERT INTO family_members (id, user_id, family_id, is_primary) VALUES (?, ?, ?, 1)")
-    .run(uuidv4(), familyUserId, familyId);
+  let familyId = existingFamily?.id;
+  if (!familyId) {
+    const familyUserId = uuidv4();
+    insertUser.run(familyUserId, bundle.familyEmail, hashPassword(demoPassword), bundle.familyUserName, "family");
+    familyId = uuidv4();
+    db.prepare("INSERT INTO families (id, name, family_code) VALUES (?, ?, ?)")
+      .run(familyId, bundle.familyName, bundle.familyCode);
+    db.prepare("INSERT INTO family_members (id, user_id, family_id, is_primary) VALUES (?, ?, ?, 1)")
+      .run(uuidv4(), familyUserId, familyId);
+  }
 
-  // Estudiante demo
-  const studentUserId = uuidv4();
-  insertUser.run(studentUserId, "becario@kuidar.app", hashPassword(demoPassword), "Carlos Ruiz", "student");
+  if (alsoSeedStudent) {
+    const hasStudent = db.prepare("SELECT 1 FROM users WHERE email = 'becario@kuidar.app'").get();
+    if (!hasStudent) {
+      const studentUserId = uuidv4();
+      insertUser.run(studentUserId, "becario@kuidar.app", hashPassword(demoPassword), "Carlos Ruiz", "student");
+      db.prepare("INSERT INTO students (id, user_id, university_id, career) VALUES (?, ?, ?, ?)")
+        .run(uuidv4(), studentUserId, universityId, "Medicina");
+    }
+  }
 
-  const unam = db.prepare("SELECT id FROM universities WHERE slug = 'unam'").get() as { id: string };
-  db.prepare("INSERT INTO students (id, user_id, university_id, career) VALUES (?, ?, ?, ?)")
-    .run(uuidv4(), studentUserId, unam.id, "Medicina");
+  for (const person of bundle.elderly) {
+    let elderlyProfileId: string | undefined;
 
-  // Adulto mayor demo, ya unido a la familia García
-  const elderlyUserId = uuidv4();
-  insertUser.run(elderlyUserId, "adulto@kuidar.app", hashPassword(demoPassword), "Don Roberto", "elderly");
+    const existingUser = db
+      .prepare("SELECT id FROM users WHERE email = ?")
+      .get(person.email) as { id: string } | undefined;
 
-  db.prepare(`
-    INSERT INTO elderly_profiles (id, user_id, family_id, first_name, address, neighborhood, lat, lng)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(uuidv4(), elderlyUserId, familyId, "Don Roberto", "Av. Coyoacán 1435", "Del Valle", 19.3826, -99.1677);
+    if (existingUser) {
+      const profile = db
+        .prepare("SELECT id FROM elderly_profiles WHERE user_id = ?")
+        .get(existingUser.id) as { id: string } | undefined;
+      elderlyProfileId = profile?.id;
+      if (profile && familyId) {
+        db.prepare("UPDATE elderly_profiles SET family_id = ? WHERE id = ?").run(familyId, profile.id);
+      }
+    } else {
+      const elderlyUserId = uuidv4();
+      insertUser.run(elderlyUserId, person.email, hashPassword(demoPassword), person.name, "elderly");
+      elderlyProfileId = uuidv4();
+      db.prepare(`
+        INSERT INTO elderly_profiles (id, user_id, family_id, first_name, address, neighborhood, lat, lng)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        elderlyProfileId,
+        elderlyUserId,
+        familyId,
+        person.firstName,
+        person.address,
+        person.neighborhood,
+        person.lat,
+        person.lng,
+      );
+    }
+
+    if (!elderlyProfileId || !familyId) continue;
+
+    const existingRequests = db
+      .prepare("SELECT COUNT(*) AS n FROM activity_requests WHERE elderly_profile_id = ?")
+      .get(elderlyProfileId) as { n: number };
+
+    if (existingRequests.n > 0) continue;
+
+    for (const req of person.requests) {
+      insertRequest.run(
+        uuidv4(),
+        familyId,
+        elderlyProfileId,
+        req.activityType,
+        req.details,
+        scheduledISO(req.daysFromNow, req.hour),
+        req.urgent ? 1 : 0,
+        person.lat,
+        person.lng,
+        req.durationMinutes ?? null,
+      );
+    }
+  }
+}
+
+const userCount = db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
+const demoPassword = process.env.DEMO_PASSWORD ?? "demo123";
+const unamRow = db.prepare("SELECT id FROM universities WHERE slug = 'unam'").get() as { id: string } | undefined;
+const universityId = unamRow?.id ?? uuidv4();
+
+if (userCount.n === 0) {
+  DEMO_FAMILIES.forEach((bundle, index) => {
+    seedFamilyBundle(demoPassword, bundle, universityId, index === 0);
+  });
+} else {
+  // DB ya existe: agregar familias/adultos/solicitudes demo que falten
+  DEMO_FAMILIES.forEach((bundle) => {
+    seedFamilyBundle(demoPassword, bundle, universityId, false);
+  });
 }

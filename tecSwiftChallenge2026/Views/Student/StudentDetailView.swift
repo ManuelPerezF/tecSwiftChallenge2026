@@ -10,6 +10,8 @@ struct StudentDetailView: View {
     @State private var isClaimed: Bool = false
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
+    @State private var aiTip: String? = nil
+    @State private var isLoadingTip: Bool = false
 
     private var arrivalTimeFormatted: String {
         let df = DateFormatter()
@@ -29,6 +31,17 @@ struct StudentDetailView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            guard FoundationModelClient.shared.isAvailable, aiTip == nil else { return }
+            isLoadingTip = true
+            aiTip = try? await FoundationModelClient.shared.visitTip(
+                activityType: request.activityType,
+                description: request.description,
+                elderlyName: request.elderlyName,
+                neighborhood: request.neighborhood
+            )
+            isLoadingTip = false
+        }
     }
 
     // MARK: - Confirmación
@@ -97,13 +110,7 @@ struct StudentDetailView: View {
                             Label(request.neighborhood, systemImage: "mappin.circle.fill")
                                 .font(.caption).foregroundStyle(Color.acoInk2)
                         }
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Image(systemName: "lock.fill")
-                                .font(.caption2).foregroundStyle(Color.acoInk3)
-                            Text("dirección al apuntarte")
-                                .font(.caption2).foregroundStyle(Color.acoInk3)
-                        }
+                        Spacer(minLength: 0)
                     }
                 }
                 .padding(.bottom, 10)
@@ -115,6 +122,33 @@ struct StudentDetailView: View {
                     factCell(symbol: "star.fill", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
                 }
                 .padding(.bottom, 14)
+
+                // Sugerencia IA — tip de preparación on-device
+                if isLoadingTip || aiTip != nil {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "sparkles")
+                            .font(.body)
+                            .foregroundStyle(Color(acoHex: "13684D"))
+                            .accessibilityHidden(true)
+                        if isLoadingTip {
+                            Text("Preparando consejo…")
+                                .font(.subheadline)
+                                .foregroundStyle(Color(acoHex: "13684D").opacity(0.55))
+                                .redacted(reason: .placeholder)
+                        } else if let tip = aiTip {
+                            Text(tip)
+                                .font(.subheadline)
+                                .foregroundStyle(Color(acoHex: "13684D"))
+                        }
+                    }
+                    .padding(13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.acoStudentSoft)
+                    .clipShape(.rect(cornerRadius: 12))
+                    .padding(.bottom, 20)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(aiTip.map { "Consejo: \($0)" } ?? "Cargando consejo")
+                }
 
                 // Selector de hora
                 Text("Propón tu hora de llegada")
