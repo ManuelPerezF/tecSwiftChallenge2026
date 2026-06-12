@@ -15,21 +15,20 @@ struct LoginView: View {
     @State private var formVisible = false
     @State private var splashLogoVisible = false
     @State private var splashTaglineVisible = false
+    @State private var splashRingScale: CGFloat = 0.6
+    @State private var splashRingOpacity: CGFloat = 0
 
     @State private var isRegistering = false
 
-    // Campos comunes
     @State private var email = ""
     @State private var password = ""
     @State private var name = ""
     @State private var selectedRole: AppRole = .family
 
-    // Estudiante
     @State private var universities: [University] = []
     @State private var selectedUniversityId: String?
     @State private var career = ""
 
-    // Familiar
     @State private var familyName = ""
 
     @State private var isLoading = false
@@ -70,6 +69,8 @@ struct LoginView: View {
             } else {
                 withAnimation(.spring(response: 0.7, dampingFraction: 0.78)) {
                     splashLogoVisible = true
+                    splashRingScale = 1
+                    splashRingOpacity = 1
                 }
                 withAnimation(.easeOut(duration: 0.5).delay(0.35)) {
                     splashTaglineVisible = true
@@ -95,17 +96,45 @@ struct LoginView: View {
         ZStack {
             brandHeaderFill.ignoresSafeArea()
 
-            VStack(spacing: 22) {
-                KuidarLogoView(height: 280, maxWidth: 320, animate: true)
-                    .scaleEffect(splashLogoVisible ? 1 : 0.82)
+            // Radial light burst
+            RadialGradient(
+                colors: [.white.opacity(0.13), .clear],
+                center: .center,
+                startRadius: 20,
+                endRadius: 280
+            )
+            .ignoresSafeArea()
+
+            // Decorative concentric rings
+            if !reduceMotion {
+                ZStack {
+                    splashRing(size: 500, opacity: 0.06)
+                    splashRing(size: 360, opacity: 0.09)
+                    splashRing(size: 230, opacity: 0.13)
+                }
+                .scaleEffect(splashRingScale)
+                .opacity(splashRingOpacity)
+            }
+
+            VStack(spacing: 32) {
+                KuidarLogoView(height: 260, maxWidth: 300, animate: true)
+                    .scaleEffect(splashLogoVisible ? 1 : 0.78)
                     .opacity(splashLogoVisible ? 1 : 0)
 
-                Text("Cuidar es estar cerca")
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.white.opacity(0.92))
-                    .opacity(splashTaglineVisible ? 1 : 0)
-                    .offset(y: splashTaglineVisible ? 0 : 10)
+                VStack(spacing: 10) {
+                    Text("Cuidar es estar cerca")
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .opacity(splashTaglineVisible ? 1 : 0)
+                        .offset(y: splashTaglineVisible ? 0 : 14)
+
+                    Rectangle()
+                        .fill(.white.opacity(0.3))
+                        .frame(width: 28, height: 1.5)
+                        .scaleEffect(x: splashTaglineVisible ? 1 : 0)
+                        .opacity(splashTaglineVisible ? 1 : 0)
+                        .animation(.easeOut(duration: 0.5).delay(0.55), value: splashTaglineVisible)
+                }
             }
             .padding(.horizontal, 32)
         }
@@ -113,7 +142,13 @@ struct LoginView: View {
         .accessibilityLabel("Kuidar. Cuidar es estar cerca")
     }
 
-    // MARK: - Login
+    private func splashRing(size: CGFloat, opacity: CGFloat) -> some View {
+        Circle()
+            .strokeBorder(.white.opacity(opacity), lineWidth: 1)
+            .frame(width: size, height: size)
+    }
+
+    // MARK: - Login screen
 
     private var loginScreen: some View {
         ScrollView {
@@ -131,31 +166,57 @@ struct LoginView: View {
         .background(Color.acoBg)
     }
 
+    // MARK: - Header (cinematic)
+
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
             brandHeaderFill
 
-            VStack(alignment: .leading, spacing: AcoSpacing.sm) {
+            // Decorative geometry (off-canvas circles)
+            Circle()
+                .fill(.white.opacity(0.07))
+                .frame(width: 300)
+                .offset(x: 130, y: -80)
+                .allowsHitTesting(false)
+
+            Circle()
+                .fill(.white.opacity(0.05))
+                .frame(width: 180)
+                .offset(x: 170, y: 30)
+                .allowsHitTesting(false)
+
+            Circle()
+                .fill(.white.opacity(0.04))
+                .frame(width: 100)
+                .offset(x: -30, y: -20)
+                .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Kuidar")
-                    .font(.largeTitle.weight(.bold))
-                    .tracking(-0.6)
+                    .font(.system(size: 52, weight: .black, design: .default))
+                    .tracking(-1.8)
                     .foregroundStyle(.white)
 
                 Text(isRegistering
-                     ? "Crea tu cuenta para empezar."
-                     : "Qué bueno verte de nuevo.")
-                    .font(.title3)
-                    .foregroundStyle(.white.opacity(0.9))
+                     ? "Crea tu cuenta\npara empezar."
+                     : "Qué bueno\nverte de nuevo.")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.80))
+                    .lineSpacing(3)
+                    .animation(.easeOut(duration: 0.2), value: isRegistering)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
-            .padding(.top, 72)
-            .padding(.bottom, 40)
+            .padding(.top, 80)
+            .padding(.bottom, 48)
         }
         .clipShape(UnevenRoundedRectangle(
-            bottomLeadingRadius: 32, bottomTrailingRadius: 32
+            bottomLeadingRadius: 36, bottomTrailingRadius: 36
         ))
+        .shadow(color: brandHeaderFill.opacity(0.25), radius: 16, y: 8)
     }
+
+    // MARK: - Form card
 
     private var formCard: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -185,17 +246,49 @@ struct LoginView: View {
         .padding(.top, 28)
     }
 
+    // MARK: - Mode toggle (premium pill)
+
     private var modeToggle: some View {
-        Picker("Modo", selection: $isRegistering) {
-            Text("Entrar").tag(false)
-            Text("Crear cuenta").tag(true)
+        HStack(spacing: 0) {
+            toggleTab(label: "Entrar", selected: !isRegistering) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.75)) { isRegistering = false }
+            }
+            toggleTab(label: "Crear cuenta", selected: isRegistering) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.75)) { isRegistering = true }
+            }
         }
-        .pickerStyle(.segmented)
-        .onChange(of: isRegistering) { _, _ in errorMessage = nil }
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .clipShape(.rect(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.acoHair, lineWidth: 1)
+        }
         .padding(.bottom, AcoSpacing.lg)
+        .onChange(of: isRegistering) { _, _ in errorMessage = nil }
     }
 
-    // MARK: - Rol
+    private func toggleTab(label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline.weight(selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.acoInk : Color.acoInk3)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background {
+                    if selected {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.09), radius: 6, y: 2)
+                            .padding(3)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityLabel(label)
+    }
+
+    // MARK: - Role picker
 
     private var rolePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -238,7 +331,7 @@ struct LoginView: View {
         .padding(.bottom, 20)
     }
 
-    // MARK: - Campos por rol
+    // MARK: - Role-specific fields
 
     @ViewBuilder
     private var roleSpecificFields: some View {
@@ -284,7 +377,7 @@ struct LoginView: View {
         }
     }
 
-    // MARK: - Campos genéricos
+    // MARK: - Generic fields
 
     private func labeledField(
         _ label: String,
@@ -338,7 +431,7 @@ struct LoginView: View {
                     Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
                         .font(.body)
                         .foregroundStyle(Color.acoInk3)
-                        .frame(width: 44, height: 30) // target ≥44pt
+                        .frame(width: 44, height: 30)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
@@ -392,6 +485,11 @@ struct LoginView: View {
                 }
             }
             .clipShape(.rect(cornerRadius: AcoRadius.md, style: .continuous))
+            .shadow(
+                color: (canSubmit ? brandHeaderFill : .clear).opacity(0.35),
+                radius: 10,
+                y: 4
+            )
         }
         .buttonStyle(AcoPressStyle())
         .disabled(!canSubmit)

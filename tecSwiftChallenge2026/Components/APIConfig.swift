@@ -5,7 +5,7 @@ enum APIConfig {
     /// IP LAN del Mac en desarrollo. Actualízala con `ipconfig getifaddr en0`
     /// o la línea «Red local» al correr `npm run dev`.
     /// OJO: también actualiza KUIDAR_API_HOST en Info.plist (ese tiene prioridad).
-    private static let devLANHost = "10.22.205.93"
+    private static let devLANHost = "10.22.146.223"
 
     private static func plistString(_ key: String) -> String? {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String,

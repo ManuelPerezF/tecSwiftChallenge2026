@@ -13,7 +13,6 @@ struct FamilyPublishView: View {
     }()
     @State private var selectedDurationMinutes: Int? = nil
     @State private var isUrgent: Bool = false
-    @State private var isSuggestingDescription: Bool = false
     @State private var descriptionText: String = ""
     @State private var isPublished: Bool = false
     @State private var isLoading: Bool = false
@@ -197,31 +196,6 @@ struct FamilyPublishView: View {
                 }
                 .padding(.horizontal, 20)
 
-                // Sugerencia de descripción con Apple Intelligence (si está disponible)
-                if FoundationModelClient.shared.isAvailable {
-                    Button {
-                        Task { await suggestDescription() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if isSuggestingDescription {
-                                ProgressView().scaleEffect(0.75).tint(Color.acoFamily)
-                            } else {
-                                Image(systemName: "text.badge.plus").font(.subheadline)
-                            }
-                            Text(isSuggestingDescription ? "Generando…" : "Sugerir descripción")
-                                .font(.subheadline).fontWeight(.medium)
-                        }
-                        .foregroundStyle(Color.acoFamily)
-                        .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(Color.acoFamilySoft)
-                        .clipShape(.capsule)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isSuggestingDescription)
-                    .padding(.horizontal, 20).padding(.top, 8)
-                    .accessibilityLabel("Sugerir descripción usando inteligencia artificial")
-                }
-
                 // Fecha y hora
                 fieldLabel("¿Cuándo?").padding(.horizontal, 20).padding(.top, 22)
                 VStack(spacing: 0) {
@@ -336,17 +310,6 @@ struct FamilyPublishView: View {
                 errorMessage = error.localizedDescription
             }
         }
-    }
-
-    private func suggestDescription() async {
-        isSuggestingDescription = true
-        if let suggestion = try? await FoundationModelClient.shared.suggestDescription(
-            activityType: selectedActivity,
-            notes: descriptionText
-        ) {
-            descriptionText = suggestion
-        }
-        isSuggestingDescription = false
     }
 
     private func resetForm() {
