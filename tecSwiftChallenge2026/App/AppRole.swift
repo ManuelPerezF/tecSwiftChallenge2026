@@ -1,7 +1,9 @@
 import Foundation
 
-enum AppRole: Hashable, CaseIterable {
-    case family, student, elderly
+enum AppRole: String, Hashable, CaseIterable {
+    case family  = "family"
+    case student = "student"
+    case elderly = "elderly"
 
     var title: String {
         switch self {
@@ -13,9 +15,9 @@ enum AppRole: Hashable, CaseIterable {
 
     var subtitle: String {
         switch self {
-        case .family:  "Hijo / hija"
-        case .student: "Estudiante"
-        case .elderly: "Abuelito / a"
+        case .family:  "Publica solicitudes para tu familiar"
+        case .student: "Explora visitas y acumula horas"
+        case .elderly: "Ve quién viene a visitarte"
         }
     }
 

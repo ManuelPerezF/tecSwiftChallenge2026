@@ -17,68 +17,51 @@ struct FamilyStudentProfileView: View {
             Color.acoBg.ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 0) {
-                    // Hero
+                    // Hero — directo, sin card
                     VStack(spacing: 0) {
-                        AvatarView(name: student.name, tint: .acoFamily, size: 104, ring: true)
+                        AvatarView(name: student.name, tint: .acoFamily, size: 96, ring: true)
+                            .padding(.bottom, 14)
 
                         Text(student.name.components(separatedBy: " ").first ?? student.name)
                             .font(.title)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.acoInk)
-                            .padding(.top, 16)
 
                         HStack(spacing: 8) {
                             UniversityBadge(university: student.uni, color: .acoFamily)
                             BadgeLabel(text: student.career, color: .acoInk2)
                         }
                         .padding(.top, 10)
-                        .flexibleFrame()
+                        .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                     }
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 26)
 
-                    // Stats
-                    HStack(spacing: 10) {
-                        AcoCard(padding: 15) {
-                            VStack(spacing: 2) {
-                                Text("\(student.hours)")
-                                    .font(.system(size: 28, weight: .heavy))
-                                    .foregroundStyle(Color.acoFamily)
-                                Text("horas de servicio")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.acoInk2)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        AcoCard(padding: 15) {
-                            VStack(spacing: 2) {
-                                HStack(alignment: .lastTextBaseline, spacing: 4) {
-                                    Text(String(format: "%.1f", student.rating))
-                                        .font(.system(size: 28, weight: .heavy))
-                                        .foregroundStyle(Color.acoStar)
-                                    Text("★")
-                                        .font(.title3)
-                                        .foregroundStyle(Color.acoStar)
-                                }
-                                Text("de otras familias")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.acoInk2)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
+                    // Estadísticas — dos filas de datos, sin card grid
+                    HStack(spacing: 8) {
+                        statCell(
+                            value: "\(student.hours)",
+                            label: "horas de servicio",
+                            color: .acoFamily
+                        )
+                        statCell(
+                            value: String(format: "%.1f ★", student.rating),
+                            label: "de otras familias",
+                            color: .acoStar
+                        )
                     }
+                    .padding(.bottom, 24)
 
-                    // Reviews
+                    // Reseñas
                     SectionLabel(text: "Lo que dicen otras familias")
-                        .padding(.top, 24)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    VStack(spacing: 10) {
+                    VStack(spacing: 8) {
                         ForEach(reviews.indices, id: \.self) { i in
-                            AcoCard(padding: 14) {
-                                VStack(alignment: .leading, spacing: 9) {
+                            AcoCard(padding: 13) {
+                                VStack(alignment: .leading, spacing: 8) {
                                     HStack {
-                                        StarRating(value: Double(reviews[i].rating), size: 14)
+                                        StarRating(value: Double(reviews[i].rating), size: 13)
                                         Spacer()
                                         Text(reviews[i].family)
                                             .font(.caption)
@@ -94,8 +77,8 @@ struct FamilyStudentProfileView: View {
                         }
                     }
 
-                    // Privacy + CTA
-                    VStack(spacing: 12) {
+                    // CTA
+                    VStack(spacing: 10) {
                         CTAButton(label: "Enviar mensaje", leadingEmoji: "💬", tint: .acoFamily) {}
                         HStack(spacing: 6) {
                             Image(systemName: "lock.fill")
@@ -110,19 +93,26 @@ struct FamilyStudentProfileView: View {
                     .padding(.bottom, 40)
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 8)
+                .padding(.top, 10)
             }
             .scrollIndicators(.hidden)
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
     }
-}
 
-// Small helper to center content
-private extension View {
-    func flexibleFrame() -> some View {
-        self.frame(maxWidth: .infinity)
+    private func statCell(value: String, label: String, color: Color) -> some View {
+        AcoCard(padding: 14) {
+            VStack(spacing: 3) {
+                Text(value)
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(color)
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(Color.acoInk2)
+            }
+            .frame(maxWidth: .infinity)
+        }
     }
 }
 

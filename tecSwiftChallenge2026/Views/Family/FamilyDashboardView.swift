@@ -3,171 +3,177 @@ import SwiftUI
 struct FamilyDashboardView: View {
     let onAddTapped: () -> Void
 
+    @State private var requests: [APIRequest] = []
+    @State private var assignments: [APIAssignment] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String? = nil
+
     var body: some View {
         ZStack {
             Color.acoBg.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(sampleFamilyRequests) { request in
-                        if request.student != nil {
-                            NavigationLink(value: request) {
-                                FamilyRequestCard(request: request)
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            FamilyRequestCard(request: request)
-                        }
-                    }
 
-                    SectionLabel(text: "Historial de visitas")
-                        .padding(.top, 6)
-
-                    AcoCard {
-                        VStack(spacing: 0) {
-                            ForEach(Array(sampleHistory.enumerated()), id: \.element.id) { index, entry in
-                                HStack(spacing: 12) {
-                                    Circle()
-                                        .fill(Color.acoDone)
-                                        .frame(width: 8, height: 8)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text("\(entry.activity) · \(entry.studentName)")
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(Color.acoInk)
-                                        Text(entry.date)
-                                            .font(.caption)
-                                            .foregroundStyle(Color.acoInk3)
-                                    }
-                                    Spacer()
-                                    StarRating(value: Double(entry.rating), size: 13)
-                                }
-                                .padding(.vertical, index == 0 ? 0 : 7)
-
-                                if index < sampleHistory.count - 1 {
-                                    Divider().padding(.vertical, 7)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 100)
+            if isLoading && requests.isEmpty {
+                ProgressView("Cargando…")
+                    .tint(Color.acoFamily)
+            } else if let err = errorMessage, requests.isEmpty {
+                serverError(err)
+            } else if requests.isEmpty {
+                emptyState
+            } else {
+                list
             }
-            .scrollIndicators(.hidden)
         }
         .navigationTitle("Mis solicitudes")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Nueva solicitud", systemImage: "plus.circle.fill", action: onAddTapped)
-                    .font(.title3)
-                    .foregroundStyle(Color.acoFamily)
-                    .labelStyle(.iconOnly)
+                Button(action: onAddTapped) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3).foregroundStyle(Color.acoFamily)
+                }
+                .accessibilityLabel("Nueva solicitud")
             }
         }
+        .task { await load() }
+        .refreshable { await load() }
+    }
+
+    // MARK: - Load
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            async let reqs = APIClient.shared.fetchFamilyRequests()
+            async let asgs = APIClient.shared.fetchFamilyAssignments()
+            let (r, a) = try await (reqs, asgs)
+            requests = r
+            assignments = a
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
+    private func assignment(for request: APIRequest) -> APIAssignment? {
+        assignments.first { $0.requestId == request.id && $0.statusEnum != .cancelada }
+    }
+
+    // MARK: - Subviews
+
+    private var list: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(requests) { req in
+                    if let asg = assignment(for: req) {
+                        NavigationLink(value: asg) {
+                            LiveRequestCard(request: req, assignment: asg)
+                        }
+                        .buttonStyle(.plain)
+                    } else if req.statusEnum == .open {
+                        NavigationLink(value: req) {
+                            LiveRequestCard(request: req, assignment: nil)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        LiveRequestCard(request: req, assignment: nil)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 100)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle().fill(Color.acoFamilySoft).frame(width: 96, height: 96)
+                Image(systemName: "heart.text.clipboard")
+                    .font(.system(size: 38)).foregroundStyle(Color.acoFamily)
+            }
+            Text("Sin solicitudes aún")
+                .font(.title3).bold().foregroundStyle(Color.acoInk)
+            Text("Publica tu primera solicitud\npara conectar con un becario.")
+                .font(.body).foregroundStyle(Color.acoInk3)
+                .multilineTextAlignment(.center)
+            CTAButton(label: "Publicar solicitud", leadingEmoji: "➕", tint: .acoFamily) {
+                onAddTapped()
+            }
+            .padding(.horizontal, 40)
+        }
+        .padding(.horizontal, 32)
+    }
+
+    private func serverError(_ message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 44)).foregroundStyle(Color.acoInk3)
+            Text("Sin conexión al servidor")
+                .font(.headline).foregroundStyle(Color.acoInk)
+            Text(message)
+                .font(.caption).foregroundStyle(Color.acoInk3)
+                .multilineTextAlignment(.center)
+            Button("Reintentar") { Task { await load() } }
+                .font(.subheadline.bold()).foregroundStyle(Color.acoFamily)
+        }
+        .padding(.horizontal, 40)
     }
 }
 
-private struct FamilyRequestCard: View {
-    let request: FamilyRequestItem
+// MARK: - Card de solicitud real
+
+private struct LiveRequestCard: View {
+    let request: APIRequest
+    let assignment: APIAssignment?
 
     var body: some View {
         AcoCard(padding: 0) {
             VStack(spacing: 0) {
-                // Main info row
                 HStack(alignment: .top, spacing: 13) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.acoFamilySoft)
-                            .frame(width: 48, height: 48)
-                        Text(request.activityType.emoji)
-                            .font(.system(size: 25))
-                            .accessibilityHidden(true)
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.acoFamilySoft).frame(width: 48, height: 48)
+                        Text(request.activityTypeEnum.emoji)
+                            .font(.system(size: 24)).accessibilityHidden(true)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack(alignment: .center, spacing: 7) {
-                            Text(request.title)
-                                .font(.headline)
-                                .foregroundStyle(Color.acoInk)
-                            if request.isUrgent {
-                                BadgeLabel(text: "Urgente", color: .acoUrgent)
-                            }
+                        HStack(spacing: 7) {
+                            Text(request.activityTypeEnum.label)
+                                .font(.headline).foregroundStyle(Color.acoInk)
+                            if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                         }
-                        Text(request.when)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.acoInk2)
-
-                        StatusRow(status: request.status, eta: request.eta)
-                            .padding(.top, 6)
+                        if request.elderlyName != "Tu familiar" {
+                            Label(request.elderlyName, systemImage: "person.fill")
+                                .font(.subheadline).foregroundStyle(Color.acoInk2)
+                        }
+                        Label(request.scheduledDateFormatted, systemImage: "calendar")
+                            .font(.subheadline).foregroundStyle(Color.acoInk2)
+                        if let assignment {
+                            Label("Becario: \(assignment.studentName) · \(assignment.statusEnum.label)", systemImage: "graduationcap.fill")
+                                .font(.subheadline).foregroundStyle(Color.acoStudent)
+                        } else if request.statusEnum == .open {
+                            Label("Ver postulantes", systemImage: "person.2.fill")
+                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoFamily)
+                        }
+                        StatusRow(status: request.statusEnum, eta: nil).padding(.top, 4)
                     }
                 }
-                .padding(16)
+                .padding(14)
 
-                // Student strip
-                if let student = request.student {
-                    Divider().padding(.leading, 16)
-                    HStack(spacing: 11) {
-                        AvatarView(name: student.name, tint: .acoFamily, size: 36)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(student.name.components(separatedBy: " ").first ?? student.name)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Color.acoInk)
-                            UniversityBadge(university: student.uni, color: .acoFamily)
-                        }
-                        Spacer()
-                        if request.status == .completed, let r = request.completedRating {
-                            StarRating(value: Double(r), size: 15)
-                        } else {
-                            Text("Ver perfil ›")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Color.acoFamily)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(acoHex: "FCFAF7"))
-                }
-
-                // AI summary
-                if let summary = request.aiSummary {
-                    Divider().padding(.leading, 16)
-                    HStack(alignment: .top, spacing: 9) {
-                        Text("✨")
-                            .font(.caption)
-                            .accessibilityHidden(true)
-                        Text(summary)
-                            .font(.caption)
-                            .foregroundStyle(Color.acoInk2)
-                            .italic()
-                            .lineLimit(4)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(acoHex: "FAFBF7"))
-                }
-
-                // Republish for completed
-                if request.status == .completed {
-                    Button("↻ Volver a publicar") { }
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.acoFamily)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 13)
-                                .strokeBorder(Color.acoFamily, lineWidth: 1.5)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 14)
-                        .background(Color(acoHex: "FAFBF7"))
+                if !request.details.isEmpty && request.details != "Ayuda con \(request.activityTypeEnum.label.lowercased())." {
+                    Rectangle().fill(Color.acoHair).frame(height: 1)
+                    Text(request.details)
+                        .font(.caption).foregroundStyle(Color.acoInk2).lineLimit(2)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(acoHex: "F8F5F1"))
                 }
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(request.title), \(request.status.label)")
+        .accessibilityLabel("\(request.activityTypeEnum.label), \(request.statusEnum.label), \(request.scheduledDateFormatted)")
     }
 }
 

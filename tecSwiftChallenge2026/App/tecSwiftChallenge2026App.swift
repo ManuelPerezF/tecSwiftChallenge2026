@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 @main
 struct tecSwiftChallenge2026App: App {
@@ -7,6 +6,5 @@ struct tecSwiftChallenge2026App: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(ModelContainer.acompana)
     }
 }

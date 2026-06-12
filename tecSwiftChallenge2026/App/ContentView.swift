@@ -1,43 +1,57 @@
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @State private var selectedRole: AppRole? = nil
+    @AppStorage("aco_authToken")  private var savedToken: String = ""
+    @AppStorage("aco_userRole")   private var savedRoleRaw: String = ""
+    @AppStorage("aco_userName")   private var savedName: String = ""
+    @AppStorage("aco_familyCode") private var savedFamilyCode: String = ""
+    @AppStorage("aco_joinedFamily") private var joinedFamily: Bool = false
+
+    private var currentRole: AppRole? {
+        guard !savedToken.isEmpty else { return nil }
+        return AppRole(rawValue: savedRoleRaw)
+    }
 
     var body: some View {
         Group {
-            if let role = selectedRole {
+            if let role = currentRole {
                 roleRoot(for: role)
-                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.97)),
+                        removal: .opacity
+                    ))
             } else {
-                RolePickerView { selected in
-                    withAnimation(.easeOut(duration: 0.28)) {
-                        selectedRole = selected
-                    }
-                }
-                .transition(.opacity)
+                LoginView()
+                    .transition(.opacity)
             }
         }
-        .animation(.easeOut(duration: 0.28), value: selectedRole)
+        .animation(.easeOut(duration: 0.28), value: currentRole != nil)
     }
 
     @ViewBuilder
     private func roleRoot(for role: AppRole) -> some View {
         switch role {
-        case .family:  FamilyRootView(onSwitchRole: switchRole)
-        case .student: StudentRootView(onSwitchRole: switchRole)
-        case .elderly: ElderlyRootView(onSwitchRole: switchRole)
+        case .family:  FamilyRootView(onLogout: logout)
+        case .student: StudentRootView(onLogout: logout)
+        case .elderly: ElderlyRootView(onLogout: logout)
         }
     }
 
-    private func switchRole() {
+    private func logout() {
+        let token = savedToken
         withAnimation(.easeOut(duration: 0.22)) {
-            selectedRole = nil
+            savedToken = ""
+            savedRoleRaw = ""
+            savedName = ""
+            savedFamilyCode = ""
+            joinedFamily = false
+        }
+        Task {
+            await APIClient.shared.logout(token: token)
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(ModelContainer.acompana)
 }

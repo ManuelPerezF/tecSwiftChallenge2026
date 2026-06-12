@@ -1,14 +1,20 @@
 import SwiftUI
 
 struct FamilyPublishView: View {
-    @State private var selectedActivity: ActivityType = .mandados
-    @State private var selectedWindow: TimeWindow = .morning
-    @State private var selectedFrequency: String = "Una vez"
-    @State private var isUrgent: Bool = false
-    @State private var descriptionText: String = "Necesita ayuda cargando el mandado, vive en 3er piso sin elevador."
-    @State private var isPublished: Bool = false
+    @AppStorage("aco_userName") private var userName: String = ""
+    @AppStorage("aco_familyCode") private var familyCode: String = ""
 
-    private let frequencies = ["Una vez", "Semanal", "Según se necesite"]
+    @State private var familyElderly: [ElderlySummary] = []
+    @State private var selectedElderlyId: String?
+    @State private var selectedActivity: ActivityType = .mandados
+    @State private var scheduledDate: Date = {
+        Calendar.current.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
+    }()
+    @State private var isUrgent: Bool = false
+    @State private var descriptionText: String = ""
+    @State private var isPublished: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
 
     var body: some View {
         ZStack {
@@ -19,203 +25,171 @@ struct FamilyPublishView: View {
                 publishForm
             }
         }
-        .navigationTitle(isPublished ? "Publicar" : "Nueva solicitud")
-        .navigationBarTitleDisplayMode(isPublished ? .inline : .large)
-    }
-
-    // MARK: - Published Confirmation
-    private var publishedConfirmation: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Spacer().frame(height: 40)
-                ZStack {
-                    Circle().fill(Color.acoFamilySoft).frame(width: 88, height: 88)
-                    Text(selectedActivity.emoji)
-                        .font(.system(size: 42))
-                        .accessibilityHidden(true)
-                }
-                Text("¡Solicitud publicada!")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.acoInk)
-                    .padding(.top, 22)
-
-                Text("Ya está visible en el mapa de los becarios. Te avisaremos en cuanto alguien se apunte.")
-                    .font(.body)
-                    .foregroundStyle(Color.acoInk2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 10)
-
-                VStack(spacing: 11) {
-                    CTAButton(label: "Ver mis solicitudes", tint: .acoFamily) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isPublished = false
-                        }
-                    }
-                    Button("Publicar otra") {
-                        withAnimation(.easeInOut(duration: 0.2), completionCriteria: .logicallyComplete) {
-                            isPublished = false
-                        } completion: {
-                            selectedActivity = .mandados
-                            descriptionText = ""
-                        }
-                    }
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.acoFamily)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 30)
+        .navigationTitle("Nueva solicitud")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            if familyElderly.isEmpty {
+                let info = try? await APIClient.shared.fetchMyFamily()
+                familyElderly = info?.elderly ?? []
+                if selectedElderlyId == nil { selectedElderlyId = familyElderly.first?.id }
             }
         }
-        .scrollIndicators(.hidden)
     }
 
-    // MARK: - Publish Form
+    // MARK: - Confirmación
+
+    private var publishedConfirmation: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            ZStack {
+                Circle().fill(Color.acoFamilySoft).frame(width: 96, height: 96)
+                Text(selectedActivity.emoji)
+                    .font(.system(size: 44)).accessibilityHidden(true)
+            }
+            Text("¡Solicitud publicada!")
+                .font(.title2).bold().foregroundStyle(Color.acoInk)
+                .padding(.top, 22)
+            Text("Ya aparece en el mapa de becarios.")
+                .font(.body).foregroundStyle(Color.acoInk2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36).padding(.top, 10)
+            CTAButton(label: "Publicar otra solicitud", tint: .acoFamily) {
+                withAnimation(.easeInOut(duration: 0.22)) { resetForm() }
+            }
+            .padding(.horizontal, 24).padding(.top, 32)
+            Spacer()
+        }
+    }
+
+    // MARK: - Formulario
+
     private var publishForm: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Para Doña Carmen · tu mamá")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.acoInk2)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
 
-                // Activity picker
-                fieldLabel("¿Con qué necesita ayuda?")
-                    .padding(.horizontal, 20)
+                if !userName.isEmpty {
+                    Text("Publicando como \(userName)")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+                        .padding(.horizontal, 20).padding(.bottom, 20)
+                }
 
-                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 10) {
-                    ForEach(ActivityType.allCases, id: \.self) { act in
-                        ActivityPickerCell(
-                            activity: act,
-                            isSelected: selectedActivity == act,
-                            tint: .acoFamily,
-                            soft: .acoFamilySoft
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedActivity = act
-                            }
+                // Para quién
+                fieldLabel("¿Para quién?").padding(.horizontal, 20)
+                if familyElderly.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Aún no hay un adulto mayor vinculado a tu familia.")
+                            .font(.subheadline).foregroundStyle(Color.acoInk2)
+                        if !familyCode.isEmpty {
+                            Text("Comparte tu código **\(familyCode)** para que se una.")
+                                .font(.caption).foregroundStyle(Color.acoInk3)
                         }
                     }
-                }
-                .padding(.horizontal, 20)
-
-                // Description
-                fieldLabel("Detalles")
-                    .padding(.horizontal, 20)
-                    .padding(.top, 22)
-
-                TextField("Describe la ayuda que necesita…", text: $descriptionText, axis: .vertical)
-                    .lineLimit(3...)
-                    .font(.body)
-                    .foregroundStyle(Color.acoInk)
                     .padding(14)
-                    .background(Color.white)
-                    .clipShape(.rect(cornerRadius: 16))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(Color(acoHex: "3C3228").opacity(0.12), lineWidth: 1)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(acoHex: "FDFBF8"))
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1) }
                     .padding(.horizontal, 20)
-
-                // Time window
-                fieldLabel("Horario preferido")
-                    .padding(.horizontal, 20)
-                    .padding(.top, 22)
-
-                HStack(spacing: 8) {
-                    ForEach(TimeWindow.allCases, id: \.self) { win in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedWindow = win
-                            }
-                        } label: {
-                            Text(win.shortLabel)
-                                .font(.body)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(selectedWindow == win ? .white : Color.acoInk2)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 13)
-                                .background(selectedWindow == win ? Color.acoFamily : Color.white)
-                                .clipShape(.rect(cornerRadius: 14))
-                                .shadow(color: Color(acoHex: "3C3228").opacity(0.04), radius: 1, y: 1)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 20)
-
-                Text("Solo un rango — el becario elige su hora exacta dentro de él.")
-                    .font(.caption)
-                    .foregroundStyle(Color.acoInk3)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 8)
-
-                // Frequency
-                fieldLabel("Frecuencia")
-                    .padding(.horizontal, 20)
-                    .padding(.top, 22)
-
-                HStack(spacing: 8) {
-                    ForEach(frequencies, id: \.self) { freq in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedFrequency = freq
-                            }
-                        } label: {
-                            Text(freq)
-                                .font(.callout)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(selectedFrequency == freq ? Color.acoFamily : Color.acoInk2)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2, reservesSpace: true)
+                } else {
+                    HStack(spacing: 8) {
+                        ForEach(familyElderly) { elderly in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) { selectedElderlyId = elderly.id }
+                            } label: {
+                                VStack(spacing: 4) {
+                                    Text("🧓").font(.title3).accessibilityHidden(true)
+                                    Text(elderly.firstName)
+                                        .font(.caption).fontWeight(.semibold)
+                                        .foregroundStyle(selectedElderlyId == elderly.id ? Color.acoFamily : Color.acoInk2)
+                                        .lineLimit(1)
+                                }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .padding(.horizontal, 4)
-                                .background(selectedFrequency == freq ? Color.acoFamilySoft : Color.white)
-                                .clipShape(.rect(cornerRadius: 14))
+                                .background(selectedElderlyId == elderly.id ? Color.acoFamilySoft : Color(acoHex: "FDFBF8"))
+                                .clipShape(.rect(cornerRadius: 12))
                                 .overlay {
-                                    RoundedRectangle(cornerRadius: 14)
+                                    RoundedRectangle(cornerRadius: 12)
                                         .strokeBorder(
-                                            selectedFrequency == freq ? Color.acoFamily : Color.clear,
-                                            lineWidth: 1.5
+                                            selectedElderlyId == elderly.id ? Color.acoFamily : Color(acoHex: "3C3228").opacity(0.10),
+                                            lineWidth: selectedElderlyId == elderly.id ? 2 : 1
                                         )
                                 }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(selectedElderlyId == elderly.id ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 20)
+                }
+
+                // Tipo de ayuda
+                fieldLabel("¿Con qué necesita ayuda?")
+                    .padding(.horizontal, 20).padding(.top, 22)
+                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 8) {
+                    ForEach(ActivityType.allCases, id: \.self) { act in
+                        ActivityPickerCell(activity: act, isSelected: selectedActivity == act,
+                                           tint: .acoFamily, soft: .acoFamilySoft) {
+                            withAnimation(.easeInOut(duration: 0.15)) { selectedActivity = act }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
 
-                // Urgency toggle
+                // Descripción
+                fieldLabel("Detalles").padding(.horizontal, 20).padding(.top, 22)
+                TextField("Describe qué necesita…", text: $descriptionText, axis: .vertical)
+                    .lineLimit(3...)
+                    .font(.body).foregroundStyle(Color.acoInk)
+                    .padding(14)
+                    .background(Color(acoHex: "FDFBF8"))
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1) }
+                    .padding(.horizontal, 20)
+
+                // Fecha y hora
+                fieldLabel("¿Cuándo?").padding(.horizontal, 20).padding(.top, 22)
+                VStack(spacing: 0) {
+                    DatePicker("Día", selection: $scheduledDate, in: Date()..., displayedComponents: .date)
+                        .datePickerStyle(.compact).tint(.acoFamily)
+                        .padding(.horizontal, 16).padding(.vertical, 14)
+                    Rectangle().fill(Color.acoHair).frame(height: 1).padding(.horizontal, 16)
+                    DatePicker("Hora", selection: $scheduledDate, in: Date()..., displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.compact).tint(.acoFamily)
+                        .padding(.horizontal, 16).padding(.vertical, 14)
+                }
+                .background(Color(acoHex: "FDFBF8"))
+                .clipShape(.rect(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1) }
+                .padding(.horizontal, 20)
+
+                Text("El becario confirmará su hora exacta.")
+                    .font(.caption).foregroundStyle(Color.acoInk3)
+                    .padding(.horizontal, 24).padding(.top, 7)
+
+                // Urgencia
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isUrgent.toggle()
-                    }
+                    withAnimation(.easeInOut(duration: 0.15)) { isUrgent.toggle() }
                 } label: {
                     UrgencyToggleRow(isUrgent: isUrgent)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .accessibilityLabel(isUrgent ? "Urgente activado" : "Urgente desactivado")
-                .accessibilityHint("Activa para resaltar en el mapa")
+                .padding(.horizontal, 20).padding(.top, 16)
+
+                // Error
+                if let err = errorMessage {
+                    Label(err, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.red)
+                        .padding(.horizontal, 20).padding(.top, 10)
+                }
 
                 // CTA
                 CTAButton(
-                    label: "Publicar solicitud",
+                    label: isLoading ? "Publicando…" : "Publicar solicitud",
                     leadingEmoji: selectedActivity.emoji,
-                    tint: .acoFamily
-                ) {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        isPublished = true
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 40)
+                    tint: .acoFamily,
+                    disabled: isLoading
+                ) { Task { await publishRequest() } }
+                .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 40)
             }
             .padding(.top, 4)
         }
@@ -223,15 +197,50 @@ struct FamilyPublishView: View {
         .background(Color.acoBg)
     }
 
+    // MARK: - API call
+
+    private func publishRequest() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            _ = try await APIClient.shared.createRequest(
+                elderlyProfileId: selectedElderlyId,
+                activityType: selectedActivity,
+                details: descriptionText.isEmpty
+                    ? "Ayuda con \(selectedActivity.label.lowercased())."
+                    : descriptionText,
+                scheduledDate: scheduledDate,
+                isUrgent: isUrgent
+            )
+            await MainActor.run {
+                isLoading = false
+                withAnimation(.easeInOut(duration: 0.22)) { isPublished = true }
+            }
+        } catch {
+            await MainActor.run {
+                isLoading = false
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func resetForm() {
+        isPublished = false
+        descriptionText = ""
+        selectedActivity = .mandados
+        isUrgent = false
+        scheduledDate = Calendar.current.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
+    }
+
     private func fieldLabel(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
-            .fontWeight(.bold)
-            .textCase(.uppercase)
-            .tracking(0.3)
-            .foregroundStyle(Color.acoFamily)
+            .font(.caption).bold().textCase(.uppercase)
+            .tracking(0.4).foregroundStyle(Color.acoFamily)
+            .padding(.bottom, 10)
     }
 }
+
+// MARK: - Activity picker cell
 
 private struct ActivityPickerCell: View {
     let activity: ActivityType
@@ -243,24 +252,20 @@ private struct ActivityPickerCell: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Text(activity.emoji)
-                    .font(.system(size: 27))
-                    .accessibilityHidden(true)
+                Text(activity.emoji).font(.system(size: 26)).accessibilityHidden(true)
                 Text(activity.label)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(isSelected ? tint : Color.acoInk2)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2, reservesSpace: true)
+                    .multilineTextAlignment(.center).lineLimit(2, reservesSpace: true)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 13)
-            .background(isSelected ? soft : Color.white)
-            .clipShape(.rect(cornerRadius: 16))
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .background(isSelected ? soft : Color(acoHex: "FDFBF8"))
+            .clipShape(.rect(cornerRadius: 12))
             .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(isSelected ? tint : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(isSelected ? tint : Color(acoHex: "3C3228").opacity(0.08),
+                                  lineWidth: isSelected ? 2 : 1)
             }
-            .shadow(color: Color(acoHex: "3C3228").opacity(0.04), radius: 1, y: 1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(activity.label)
@@ -268,48 +273,38 @@ private struct ActivityPickerCell: View {
     }
 }
 
+// MARK: - Urgency toggle
+
 private struct UrgencyToggleRow: View {
     let isUrgent: Bool
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(isUrgent ? "🔴" : "⚪️")
-                .font(.system(size: 20))
+            Circle().fill(isUrgent ? Color.acoUrgent : Color(acoHex: "D8CFC4")).frame(width: 12, height: 12)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Marcar como urgente")
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.acoInk)
-                Text("Resalta tu solicitud en el mapa")
-                    .font(.caption)
-                    .foregroundStyle(Color.acoInk2)
+                Text("Marcar como urgente").font(.body).fontWeight(.semibold).foregroundStyle(Color.acoInk)
+                Text("Resalta en el mapa de becarios").font(.caption).foregroundStyle(Color.acoInk2)
             }
             Spacer()
             ZStack(alignment: isUrgent ? .trailing : .leading) {
-                Capsule()
-                    .fill(isUrgent ? Color.acoUrgent : Color(acoHex: "D8CFC4"))
-                    .frame(width: 46, height: 28)
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 24, height: 24)
-                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
-                    .padding(.horizontal, 2)
+                Capsule().fill(isUrgent ? Color.acoUrgent : Color(acoHex: "D8CFC4")).frame(width: 46, height: 28)
+                Circle().fill(Color.white).frame(width: 24, height: 24)
+                    .shadow(color: .black.opacity(0.18), radius: 2, y: 1).padding(.horizontal, 2)
             }
             .animation(.easeInOut(duration: 0.15), value: isUrgent)
         }
-        .padding(14)
-        .background(isUrgent ? Color(acoHex: "FBEDE2") : Color.white)
-        .clipShape(.rect(cornerRadius: 16))
+        .padding(13)
+        .background(isUrgent ? Color(acoHex: "FBEDE2") : Color(acoHex: "FDFBF8"))
+        .clipShape(.rect(cornerRadius: 14))
         .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(isUrgent ? Color.acoUrgent : Color.clear, lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isUrgent ? Color.acoUrgent : Color(acoHex: "3C3228").opacity(0.08),
+                              lineWidth: isUrgent ? 1.5 : 1)
         }
     }
 }
 
 #Preview {
-    NavigationStack {
-        FamilyPublishView()
-    }
+    NavigationStack { FamilyPublishView() }
 }

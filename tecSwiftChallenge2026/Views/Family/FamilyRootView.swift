@@ -1,12 +1,11 @@
 import SwiftUI
-import SwiftData
 
 enum FamilyTab: Hashable {
-    case publish, dashboard
+    case publish, dashboard, family
 }
 
 struct FamilyRootView: View {
-    let onSwitchRole: () -> Void
+    let onLogout: () -> Void
     @State private var selectedTab: FamilyTab = .dashboard
 
     var body: some View {
@@ -15,38 +14,38 @@ struct FamilyRootView: View {
                 NavigationStack {
                     FamilyPublishView()
                         .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                roleMenuButton
-                            }
-                        }
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }
             }
             Tab("Solicitudes", systemImage: "list.bullet", value: FamilyTab.dashboard) {
                 NavigationStack {
                     FamilyDashboardView(onAddTapped: { selectedTab = .publish })
-                        .navigationDestination(for: FamilyRequestItem.self) { item in
-                            FamilyStudentProfileView(request: item)
+                        .navigationDestination(for: APIRequest.self) { request in
+                            FamilyApplicantsView(request: request)
                         }
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                roleMenuButton
-                            }
+                        .navigationDestination(for: APIAssignment.self) { assignment in
+                            FamilyLiveVisitView(assignment: assignment)
                         }
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                }
+            }
+            Tab("Mi familia", systemImage: "person.2.fill", value: FamilyTab.family) {
+                NavigationStack {
+                    FamilyManageView()
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }
             }
         }
         .tint(.acoFamily)
     }
 
-    private var roleMenuButton: some View {
-        Button("Cambiar rol", action: onSwitchRole)
+    private var logoutButton: some View {
+        Button("Cerrar sesión", action: onLogout)
             .font(.caption)
             .foregroundStyle(Color.acoInk3)
     }
 }
 
 #Preview {
-    FamilyRootView(onSwitchRole: {})
-        .modelContainer(ModelContainer.acompana)
+    FamilyRootView(onLogout: {})
 }

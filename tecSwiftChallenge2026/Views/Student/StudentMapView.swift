@@ -1,187 +1,233 @@
 import SwiftUI
+import MapKit
+import CoreLocation
+import Combine
+
+extension CLLocationCoordinate2D: @retroactive Equatable {
+    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+        lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+    }
+}
+
+// MARK: - Coordinate helper
+
+private extension OpenRequest {
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+// MARK: - Map region helpers
+
+private let fallbackCenter = CLLocationCoordinate2D(latitude: 19.3950, longitude: -99.1630)
+private let overviewSpan = MKCoordinateSpan(latitudeDelta: 0.055, longitudeDelta: 0.055)
+private let detailSpan   = MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+
+// MARK: - Main view
 
 struct StudentMapView: View {
-    @State private var selectedId: String = "o1"
+    @StateObject private var locationManager = StudentLocationManager()
+    @State private var requests: [OpenRequest] = []
+    @State private var selectedId: String = ""
     @State private var filterActivity: ActivityType? = nil
+    @State private var didCenterOnCurrentLocation = false
+    @State private var position: MapCameraPosition = .region(
+        MKCoordinateRegion(center: fallbackCenter, span: overviewSpan)
+    )
 
     private var filteredRequests: [OpenRequest] {
-        guard let f = filterActivity else { return sampleOpenRequests }
-        return sampleOpenRequests.filter { $0.activityType == f }
+        guard let f = filterActivity else { return requests }
+        return requests.filter { $0.activityType == f }
+    }
+
+    private var overviewCenter: CLLocationCoordinate2D {
+        locationManager.coordinate ?? fallbackCenter
     }
 
     var body: some View {
         ZStack(alignment: .top) {
-            // Map fills everything
-            MapLayer(
-                requests: filteredRequests,
-                selectedId: selectedId,
-                onPinTap: { selectedId = $0 }
-            )
-            .ignoresSafeArea(edges: .top)
+            mapLayer
 
-            // Top filter bar
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Cerca de ti")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.acoInk)
-                    .shadow(color: Color(acoHex: "EAE3D7").opacity(0.9), radius: 6)
+            filterBar
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-                Text("^[\(filteredRequests.count) solicitud](inflect: true) abierta")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.acoInk2)
-                    .shadow(color: Color(acoHex: "EAE3D7").opacity(0.9), radius: 4)
-
-                ScrollView(.horizontal) {
-                    HStack(spacing: 7) {
-                        ChipButton(
-                            label: "Todas",
-                            tint: .acoStudent,
-                            soft: Color.white.opacity(0.92),
-                            isActive: filterActivity == nil
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                filterActivity = nil
-                            }
-                        }
-                        ForEach(ActivityType.allCases, id: \.self) { act in
-                            ChipButton(
-                                label: "\(act.emoji) \(act.label.components(separatedBy: " ").first ?? act.label)",
-                                tint: .acoStudent,
-                                soft: Color.white.opacity(0.92),
-                                isActive: filterActivity == act
-                            ) {
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    filterActivity = act
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 1)
-                }
-                .scrollIndicators(.hidden)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
-
-            // Legend (top-right)
-            HStack {
-                Spacer()
-                VStack(alignment: .leading, spacing: 7) {
-                    MapLegendRow(color: .acoUrgent, label: "Urgente")
-                    MapLegendRow(color: .acoMapPin, label: "Normal")
-                }
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(.regularMaterial)
-                .clipShape(.rect(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.10), radius: 5)
-            }
-            .padding(.trailing, 14)
-            .padding(.top, 120)
-
-            // Bottom sheet
             VStack {
                 Spacer()
                 MapBottomSheet(
                     filteredRequests: filteredRequests,
-                    selectedId: $selectedId
+                    selectedId: $selectedId,
+                    onSelect: { req in
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            position = .region(MKCoordinateRegion(center: req.coordinate, span: detailSpan))
+                        }
+                    }
                 )
             }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .task {
+            locationManager.requestLocation()
+            await loadRequests()
+        }
+        .onChange(of: locationManager.coordinate) { _, coordinate in
+            guard let coordinate, !didCenterOnCurrentLocation else { return }
+            didCenterOnCurrentLocation = true
+            withAnimation {
+                position = .region(MKCoordinateRegion(center: coordinate, span: overviewSpan))
+            }
+        }
+        .onChange(of: filterActivity) { _, _ in
+            if filteredRequests.first(where: { $0.id == selectedId }) == nil,
+               let first = filteredRequests.first { selectedId = first.id }
+            withAnimation { position = .region(MKCoordinateRegion(center: overviewCenter, span: overviewSpan)) }
+        }
     }
-}
 
-// MARK: - Map layer (background + pins using GeometryReader for % positioning)
-private struct MapLayer: View {
-    let requests: [OpenRequest]
-    let selectedId: String
-    let onPinTap: (String) -> Void
+    // MARK: - Map layer
 
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
+    private var mapLayer: some View {
+        Map(position: $position) {
+            UserAnnotation()
 
-            ZStack {
-                MapCanvasBackground()
+            ForEach(filteredRequests) { req in
+                Annotation(req.title, coordinate: req.coordinate) {
+                    MapPinButton(request: req, isSelected: req.id == selectedId) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            selectedId = req.id
+                            position = .region(MKCoordinateRegion(center: req.coordinate, span: detailSpan))
+                        }
+                    }
+                }
+                .annotationTitles(.hidden)
+            }
+        }
+        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .including([
+            .cafe, .hospital, .pharmacy, .park, .publicTransport
+        ])))
+        .mapControls { MapCompass(); MapScaleView() }
+        .ignoresSafeArea(edges: .top)
+    }
 
-                ForEach(requests) { req in
-                    MapPinButton(
-                        request: req,
-                        isSelected: req.id == selectedId,
-                        onTap: { onPinTap(req.id) }
-                    )
-                    .position(
-                        x: w * req.xPct / 100,
-                        y: h * req.yPct / 100
-                    )
+    // MARK: - Load from API
+
+    private func loadRequests() async {
+        do {
+            let apiRequests = try await APIClient.shared.fetchOpenRequests()
+            let openRequests = apiRequests.map { $0.toOpenRequest() }
+            await MainActor.run {
+                requests = openRequests
+                if selectedId.isEmpty, let first = openRequests.first {
+                    selectedId = first.id
                 }
             }
+        } catch {
+            // Show static sample data as fallback so map isn't empty
+            await MainActor.run {
+                requests = sampleOpenRequests
+                if selectedId.isEmpty { selectedId = sampleOpenRequests.first?.id ?? "" }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(acoHex: "EAE3D7"))
+    }
+
+    // MARK: Filter bar
+
+    private var filterBar: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Text("Cerca de ti")
+                    .font(.title2).bold().foregroundStyle(Color.acoInk)
+                Spacer()
+                Text("^[\(filteredRequests.count) solicitud](inflect: true)")
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundStyle(Color.acoStudent)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Color.acoStudentSoft)
+                    .clipShape(Capsule())
+            }
+            ScrollView(.horizontal) {
+                HStack(spacing: 7) {
+                    ChipButton(label: "Todas", tint: .acoStudent, soft: Color.white.opacity(0.95),
+                               isActive: filterActivity == nil) {
+                        withAnimation(.easeInOut(duration: 0.15)) { filterActivity = nil }
+                    }
+                    ForEach(ActivityType.allCases, id: \.self) { act in
+                        ChipButton(
+                            label: "\(act.emoji) \(act.label.components(separatedBy: " ").first ?? act.label)",
+                            tint: .acoStudent, soft: Color.white.opacity(0.95),
+                            isActive: filterActivity == act
+                        ) {
+                            withAnimation(.easeInOut(duration: 0.15)) { filterActivity = act }
+                        }
+                    }
+                }
+                .padding(.horizontal, 1)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
     }
 }
 
-// MARK: - Stylised map drawn with Canvas (avoids nested GeometryReader)
-private struct MapCanvasBackground: View {
-    var body: some View {
-        Canvas { ctx, size in
-            let w = size.width
-            let h = size.height
+// MARK: - Current location
 
-            // Park 1 (bottom-left)
-            ctx.fill(
-                Path(roundedRect: CGRect(x: w*0.04, y: h*0.55, width: w*0.34, height: h*0.32), cornerRadius: 20),
-                with: .color(Color(acoHex: "CDDCB6"))
-            )
-            // Park 2 (top-right)
-            ctx.fill(
-                Path(roundedRect: CGRect(x: w*0.68, y: h*0.06, width: w*0.26, height: h*0.22), cornerRadius: 18),
-                with: .color(Color(acoHex: "CDDCB6"))
-            )
-            // Water triangle (bottom-right)
-            var water = Path()
-            water.move(to:    CGPoint(x: w*0.70, y: h))
-            water.addLine(to: CGPoint(x: w,       y: h*0.72))
-            water.addLine(to: CGPoint(x: w,       y: h))
-            water.closeSubpath()
-            ctx.fill(water, with: .color(Color(acoHex: "BAD3E0")))
+private final class StudentLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published private(set) var coordinate: CLLocationCoordinate2D?
+    @Published private(set) var authorizationStatus: CLAuthorizationStatus
 
-            // Horizontal roads
-            for t: CGFloat in [0.18, 0.44, 0.70] {
-                ctx.fill(Path(CGRect(x: 0, y: h*t-6, width: w, height: 12)),
-                         with: .color(Color(acoHex: "F6F1E9")))
-            }
-            // Vertical roads
-            for l: CGFloat in [0.26, 0.52, 0.78] {
-                ctx.fill(Path(CGRect(x: w*l-6, y: 0, width: 12, height: h)),
-                         with: .color(Color(acoHex: "F6F1E9")))
-            }
-            // Diagonal avenue (14° strip computed as parallelogram)
-            let tanAngle = CGFloat(tan(14.0 * Double.pi / 180))
-            let roadBaseY = h * 0.20
-            let x0: CGFloat = -w * 0.1
-            let x1: CGFloat = w * 1.1
-            var diag = Path()
-            diag.move(to:    CGPoint(x: x0, y: roadBaseY + x0 * tanAngle - 7))
-            diag.addLine(to: CGPoint(x: x1, y: roadBaseY + x1 * tanAngle - 7))
-            diag.addLine(to: CGPoint(x: x1, y: roadBaseY + x1 * tanAngle + 7))
-            diag.addLine(to: CGPoint(x: x0, y: roadBaseY + x0 * tanAngle + 7))
-            diag.closeSubpath()
-            ctx.fill(diag, with: .color(Color(acoHex: "F6F1E9")))
+    private let manager = CLLocationManager()
+
+    override init() {
+        authorizationStatus = manager.authorizationStatus
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func requestLocation() {
+        switch authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        case .denied, .restricted:
+            break
+        @unknown default:
+            break
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(acoHex: "EAE3D7"))
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        DispatchQueue.main.async {
+            self.authorizationStatus = manager.authorizationStatus
+
+            guard manager.authorizationStatus == .authorizedAlways ||
+                  manager.authorizationStatus == .authorizedWhenInUse else { return }
+
+            manager.requestLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let latestLocation = locations.last else { return }
+
+        DispatchQueue.main.async {
+            self.coordinate = latestLocation.coordinate
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // Keep the fallback map region if the device cannot provide a location.
     }
 }
 
-// MARK: - Map pin button
+// MARK: - Custom map pin
+
 private struct MapPinButton: View {
     let request: OpenRequest
     let isSelected: Bool
@@ -194,111 +240,77 @@ private struct MapPinButton: View {
             ZStack {
                 Circle()
                     .fill(pinColor)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Circle().strokeBorder(isSelected ? Color.white : Color.clear, lineWidth: 2.5)
-                    }
+                    .frame(width: isSelected ? 46 : 38, height: isSelected ? 46 : 38)
+                    .overlay { Circle().strokeBorder(Color.white, lineWidth: isSelected ? 3 : 2) }
                 Text(request.activityType.emoji)
-                    .font(.system(size: 18))
-                    .accessibilityHidden(true)
+                    .font(.system(size: isSelected ? 22 : 17)).accessibilityHidden(true)
             }
-            .shadow(
-                color: isSelected ? pinColor.opacity(0.45) : .black.opacity(0.25),
-                radius: isSelected ? 10 : 5,
-                y: 3
-            )
-            .scaleEffect(isSelected ? 1.15 : 1.0)
+            .shadow(color: isSelected ? pinColor.opacity(0.55) : .black.opacity(0.25),
+                    radius: isSelected ? 12 : 5, y: 3)
+            .scaleEffect(isSelected ? 1.0 : 0.9)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            "\(request.activityType.label), \(request.neighborhood), \(request.isUrgent ? "urgente" : "normal")"
-        )
-    }
-}
-
-// MARK: - Legend row
-private struct MapLegendRow: View {
-    let color: Color
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 11, height: 11)
-            Text(label)
-                .font(.caption2)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.acoInk2)
-        }
+        .accessibilityLabel("\(request.activityType.label), \(request.neighborhood), \(request.isUrgent ? "urgente" : "normal")")
     }
 }
 
 // MARK: - Bottom sheet
+
 private struct MapBottomSheet: View {
     let filteredRequests: [OpenRequest]
     @Binding var selectedId: String
+    let onSelect: (OpenRequest) -> Void
 
     private var selected: OpenRequest? {
-        sampleOpenRequests.first { $0.id == selectedId }
+        filteredRequests.first { $0.id == selectedId }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Handle
             RoundedRectangle(cornerRadius: 999)
                 .fill(Color(acoHex: "3C3228").opacity(0.18))
                 .frame(width: 40, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
+                .padding(.top, 10).padding(.bottom, 4)
 
-            // Selected callout
             if let req = selected {
-                NavigationLink(value: req) {
-                    SelectedRequestCallout(request: req)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
+                NavigationLink(value: req) { SelectedRequestCallout(request: req) }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 4)
             }
 
-            // Sort hint
             HStack(spacing: 5) {
-                Text("✨").font(.caption).accessibilityHidden(true)
+                Image(systemName: "sparkles").font(.caption).foregroundStyle(Color.acoStudent)
                 Text("Ordenado por distancia y afinidad contigo")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.acoInk3)
+                    .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoInk3)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 6)
+            .padding(.horizontal, 18).padding(.top, 6)
 
-            // Ranked list
             ScrollView {
                 VStack(spacing: 9) {
                     ForEach(filteredRequests.sorted { $0.matchScore > $1.matchScore }) { req in
                         Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                selectedId = req.id
-                            }
+                            withAnimation(.easeInOut(duration: 0.15)) { selectedId = req.id }
+                            onSelect(req)
                         } label: {
                             RankedRow(request: req, isSelected: req.id == selectedId)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 100)
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 100)
             }
             .scrollIndicators(.hidden)
             .frame(maxHeight: 220)
         }
         .background(Color.acoBg)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 24))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0,
+                                          bottomTrailingRadius: 0, topTrailingRadius: 24))
         .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
     }
 }
+
+// MARK: - Selected callout card
 
 private struct SelectedRequestCallout: View {
     let request: OpenRequest
@@ -308,23 +320,16 @@ private struct SelectedRequestCallout: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13)
-                        .fill(Color.acoStudentSoft)
-                        .frame(width: 46, height: 46)
+                        .fill(Color.acoStudentSoft).frame(width: 46, height: 46)
                     Text(request.activityType.emoji).font(.system(size: 24)).accessibilityHidden(true)
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(request.title)
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.acoInk)
-                        if request.isUrgent {
-                            BadgeLabel(text: "Urgente", color: .acoUrgent)
-                        }
+                        Text(request.title).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
+                        if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                     }
                     Text("📍 \(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel) · \(request.duration)")
-                        .font(.caption)
-                        .foregroundStyle(Color.acoInk2)
+                        .font(.caption).foregroundStyle(Color.acoInk2)
                 }
                 Spacer()
                 VStack(spacing: 2) {
@@ -337,6 +342,8 @@ private struct SelectedRequestCallout: View {
     }
 }
 
+// MARK: - Ranked row
+
 private struct RankedRow: View {
     let request: OpenRequest
     let isSelected: Bool
@@ -345,8 +352,8 @@ private struct RankedRow: View {
         HStack(spacing: 12) {
             Text(request.activityType.emoji).font(.system(size: 23)).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(request.title)
-                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoInk).lineLimit(1)
+                Text(request.title).font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(Color.acoInk).lineLimit(1)
                 Text("\(request.neighborhood) · \(request.distance) · \(request.timeWindow.shortLabel)")
                     .font(.caption).foregroundStyle(Color.acoInk2)
             }
@@ -372,6 +379,8 @@ private struct RankedRow: View {
     }
 }
 
+// MARK: - Util
+
 private func hoursFormatted(_ h: Double) -> String {
     h.truncatingRemainder(dividingBy: 1) == 0
         ? String(format: "%.0f", h)
@@ -379,7 +388,5 @@ private func hoursFormatted(_ h: Double) -> String {
 }
 
 #Preview {
-    NavigationStack {
-        StudentMapView()
-    }
+    NavigationStack { StudentMapView() }
 }

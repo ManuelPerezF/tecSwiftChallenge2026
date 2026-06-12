@@ -31,8 +31,8 @@ struct OpenRequest: Identifiable, Hashable {
     let duration: String
     let hours: Double
     let isUrgent: Bool
-    let xPct: Double
-    let yPct: Double
+    let latitude: Double
+    let longitude: Double
     let distance: String
     let matchScore: Int
     let elderlyName: String
@@ -92,11 +92,11 @@ let sampleFamilyRequests: [FamilyRequestItem] = [
 ]
 
 let sampleOpenRequests: [OpenRequest] = [
-    OpenRequest(id: "o1", activityType: .citas,       neighborhood: "Del Valle",  timeWindow: .morning,   duration: "2 h",    hours: 2,    isUrgent: true,  xPct: 32, yPct: 30, distance: "0.8 km", matchScore: 94, elderlyName: "Carmen",  title: "Cita con el cardiólogo",       description: "Acompañarla al hospital ABC, está un poco nerviosa. Llevar su carpeta de estudios."),
-    OpenRequest(id: "o2", activityType: .mandados,    neighborhood: "Narvarte",   timeWindow: .afternoon, duration: "1 h",    hours: 1,    isUrgent: false, xPct: 60, yPct: 48, distance: "1.2 km", matchScore: 88, elderlyName: "Jorge",   title: "Mandado al mercado",           description: "Ayuda cargando las bolsas, vive en 3er piso sin elevador."),
-    OpenRequest(id: "o3", activityType: .tecnologia,  neighborhood: "Roma Sur",   timeWindow: .afternoon, duration: "45 min", hours: 0.75, isUrgent: false, xPct: 46, yPct: 66, distance: "1.5 km", matchScore: 81, elderlyName: "Lupita",  title: "Videollamada con la familia",  description: "Quiere aprender a usar WhatsApp para ver a sus nietos."),
-    OpenRequest(id: "o4", activityType: .compania,    neighborhood: "Del Valle",  timeWindow: .evening,   duration: "1.5 h",  hours: 1.5,  isUrgent: false, xPct: 22, yPct: 54, distance: "0.9 km", matchScore: 77, elderlyName: "Roberto", title: "Tarde de plática y café",      description: "Le gusta platicar de fútbol y jugar dominó."),
-    OpenRequest(id: "o5", activityType: .medicamento, neighborhood: "Narvarte",   timeWindow: .morning,   duration: "30 min", hours: 0.5,  isUrgent: true,  xPct: 72, yPct: 28, distance: "1.4 km", matchScore: 72, elderlyName: "Elena",   title: "Recoger medicamentos",         description: "Recoger receta en la farmacia y entregarla en casa."),
+    OpenRequest(id: "o1", activityType: .citas,       neighborhood: "Del Valle",  timeWindow: .morning,   duration: "2 h",    hours: 2,    isUrgent: true,  latitude: 19.3812, longitude: -99.1714, distance: "0.8 km", matchScore: 94, elderlyName: "Carmen",  title: "Cita con el cardiólogo",       description: "Acompañarla al hospital ABC, está un poco nerviosa. Llevar su carpeta de estudios."),
+    OpenRequest(id: "o2", activityType: .mandados,    neighborhood: "Narvarte",   timeWindow: .afternoon, duration: "1 h",    hours: 1,    isUrgent: false, latitude: 19.4002, longitude: -99.1578, distance: "1.2 km", matchScore: 88, elderlyName: "Jorge",   title: "Mandado al mercado",           description: "Ayuda cargando las bolsas, vive en 3er piso sin elevador."),
+    OpenRequest(id: "o3", activityType: .tecnologia,  neighborhood: "Roma Sur",   timeWindow: .afternoon, duration: "45 min", hours: 0.75, isUrgent: false, latitude: 19.4088, longitude: -99.1640, distance: "1.5 km", matchScore: 81, elderlyName: "Lupita",  title: "Videollamada con la familia",  description: "Quiere aprender a usar WhatsApp para ver a sus nietos."),
+    OpenRequest(id: "o4", activityType: .compania,    neighborhood: "Del Valle",  timeWindow: .evening,   duration: "1.5 h",  hours: 1.5,  isUrgent: false, latitude: 19.3855, longitude: -99.1682, distance: "0.9 km", matchScore: 77, elderlyName: "Roberto", title: "Tarde de plática y café",      description: "Le gusta platicar de fútbol y jugar dominó."),
+    OpenRequest(id: "o5", activityType: .medicamento, neighborhood: "Narvarte",   timeWindow: .morning,   duration: "30 min", hours: 0.5,  isUrgent: true,  latitude: 19.4035, longitude: -99.1545, distance: "1.4 km", matchScore: 72, elderlyName: "Elena",   title: "Recoger medicamentos",         description: "Recoger receta en la farmacia y entregarla en casa."),
 ]
 
 let sampleCommitments: [CommitmentItem] = [

@@ -1,57 +1,7 @@
-import SwiftData
 import Foundation
 
-// MARK: - FamilyMember
-@Model
-class FamilyMember {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var email: String
-    var phone: String
-
-    @Relationship(deleteRule: .cascade)
-    var elderlyPersons: [ElderlyPerson] = []
-
-    @Relationship(deleteRule: .cascade)
-    var requests: [ActivityRequest] = []
-
-    init(name: String, email: String, phone: String) {
-        self.id = UUID()
-        self.name = name
-        self.email = email
-        self.phone = phone
-    }
-}
-
-// MARK: - ElderlyPerson
-@Model
-class ElderlyPerson {
-    @Attribute(.unique) var id: UUID
-    var firstName: String
-    var neighborhood: String
-    var address: String
-    var notes: String
-    var createdAt: Date
-
-    var familyMember: FamilyMember?
-
-    @Relationship(deleteRule: .cascade)
-    var requests: [ActivityRequest] = []
-
-    @Relationship(deleteRule: .nullify)
-    var ratings: [Rating] = []
-
-    init(firstName: String, neighborhood: String, address: String, notes: String = "") {
-        self.id = UUID()
-        self.firstName = firstName
-        self.neighborhood = neighborhood
-        self.address = address
-        self.notes = notes
-        self.createdAt = Date()
-    }
-}
-
 // MARK: - ActivityType
+
 enum ActivityType: String, Codable, CaseIterable {
     case mandados    = "mandados"
     case citas       = "citas"
@@ -84,6 +34,7 @@ enum ActivityType: String, Codable, CaseIterable {
 }
 
 // MARK: - TimeWindow
+
 enum TimeWindow: String, Codable, CaseIterable {
     case morning   = "Mañana (8–12)"
     case afternoon = "Tarde (12–18)"
@@ -96,174 +47,296 @@ enum TimeWindow: String, Codable, CaseIterable {
         case .evening:   "Noche"
         }
     }
+
+    static func from(date: Date) -> TimeWindow {
+        let hour = Calendar.current.component(.hour, from: date)
+        if hour < 12 { return .morning }
+        if hour < 18 { return .afternoon }
+        return .evening
+    }
 }
 
 // MARK: - RequestStatus
+
 enum RequestStatus: String, Codable {
     case open, claimed, inProgress, completed, cancelled
 
     var label: String {
         switch self {
-        case .open:      "Abierta"
-        case .claimed:   "Becario asignado"
-        case .inProgress:"En curso"
-        case .completed: "Completada"
-        case .cancelled: "Cancelada"
+        case .open:       "Abierta"
+        case .claimed:    "Becario asignado"
+        case .inProgress: "En curso"
+        case .completed:  "Completada"
+        case .cancelled:  "Cancelada"
         }
     }
 }
 
-// MARK: - ActivityRequest
-@Model
-class ActivityRequest {
-    @Attribute(.unique) var id: UUID
-    var activityType: ActivityType
-    var details: String
-    var timeWindow: TimeWindow
-    var frequency: String
-    var isUrgent: Bool
-    var status: RequestStatus
-    var publishedAt: Date
-    var latitude: Double
-    var longitude: Double
+// MARK: - Auth
 
-    var elderlyPerson: ElderlyPerson?
-    var familyMember: FamilyMember?
+struct AuthUser: Codable, Sendable {
+    let id: String
+    let name: String
+    let email: String
+    let role: String
 
-    @Relationship(deleteRule: .cascade)
-    var claim: Claim?
-
-    init(activityType: ActivityType, details: String,
-         timeWindow: TimeWindow, frequency: String,
-         isUrgent: Bool, latitude: Double, longitude: Double) {
-        self.id = UUID()
-        self.activityType = activityType
-        self.details = details
-        self.timeWindow = timeWindow
-        self.frequency = frequency
-        self.isUrgent = isUrgent
-        self.status = .open
-        self.publishedAt = Date()
-        self.latitude = latitude
-        self.longitude = longitude
+    var roleEnum: AppRole? {
+        AppRole(rawValue: role)
     }
 }
 
-// MARK: - Student
-@Model
-class Student {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var university: String
-    var career: String
-    var photoURL: String
-    var averageRating: Double
-    var totalHours: Int
+struct ProfilePayload: Codable, Sendable {
+    var familyId: String?
+    var familyCode: String?
+    var familyName: String?
+    var studentId: String?
+    var universityId: String?
+    var universityName: String?
+    var career: String?
+    var totalHours: Double?
+    var averageRating: Double?
+    var elderlyProfileId: String?
+    var joinedFamily: Bool?
+}
 
-    @Relationship(deleteRule: .cascade)
-    var claims: [Claim] = []
+struct LoginResponse: Codable, Sendable {
+    let token: String
+    let user: AuthUser
+    let profile: ProfilePayload
+}
 
-    @Relationship(deleteRule: .nullify)
-    var ratings: [Rating] = []
+// MARK: - Catálogos
 
-    @Relationship(deleteRule: .cascade)
-    var serviceHours: [ServiceHours] = []
+struct University: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let name: String
+    let slug: String
+    let lat: Double
+    let lng: Double
+}
 
-    init(name: String, university: String, career: String) {
-        self.id = UUID()
-        self.name = name
-        self.university = university
-        self.career = career
-        self.photoURL = ""
-        self.averageRating = 0.0
-        self.totalHours = 0
+struct FamilyInfo: Codable, Sendable {
+    let id: String
+    let name: String
+    let familyCode: String
+    let elderly: [ElderlySummary]
+}
+
+struct ElderlySummary: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let firstName: String
+    let address: String
+    let neighborhood: String
+    let lat: Double
+    let lng: Double
+}
+
+// MARK: - Postulaciones
+
+struct APIApplication: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let requestId: String
+    let studentId: String
+    let studentName: String
+    let universityName: String
+    let career: String
+    let totalHours: Double
+    let averageRating: Double
+    let message: String
+    let status: String      // pending | approved | rejected
+    let createdAt: String
+}
+
+// MARK: - Asignaciones (visitas)
+
+enum AssignmentStatus: String, Codable, Sendable {
+    case approved, enCamino = "en_camino", iniciada, completada, cancelada
+
+    var label: String {
+        switch self {
+        case .approved:   "Aprobada"
+        case .enCamino:   "En camino"
+        case .iniciada:   "En curso"
+        case .completada: "Completada"
+        case .cancelada:  "Cancelada"
+        }
+    }
+
+    var isActive: Bool {
+        self == .approved || self == .enCamino || self == .iniciada
     }
 }
 
-// MARK: - ClaimStatus
-enum ClaimStatus: String, Codable {
-    case pending, confirmed, onTheWay, arrived, completed, cancelled
-}
+struct APIAssignment: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let requestId: String
+    let studentId: String
+    let studentName: String
+    let status: String
+    let approvedAt: String
+    let enCaminoAt: String?
+    let checkinAt: String?
+    let checkoutAt: String?
+    let hoursLogged: Double
+    let activityType: String
+    let details: String
+    let scheduledDate: String
+    let isUrgent: Bool
+    let latitude: Double
+    let longitude: Double
+    let elderlyName: String
+    let neighborhood: String
+    let address: String
+    let familyId: String
 
-// MARK: - Claim
-@Model
-class Claim {
-    @Attribute(.unique) var id: UUID
-    var proposedTime: Date
-    var status: ClaimStatus
-    var checkinTime: Date?
-    var checkoutTime: Date?
+    var statusEnum: AssignmentStatus {
+        AssignmentStatus(rawValue: status) ?? .approved
+    }
 
-    var request: ActivityRequest?
-    var student: Student?
-
-    @Relationship(deleteRule: .cascade)
-    var serviceHours: ServiceHours?
-
-    @Relationship(deleteRule: .cascade)
-    var rating: Rating?
-
-    init(proposedTime: Date) {
-        self.id = UUID()
-        self.proposedTime = proposedTime
-        self.status = .pending
+    var activityTypeEnum: ActivityType {
+        ActivityType(rawValue: activityType) ?? .compania
     }
 }
 
-// MARK: - Rating
-@Model
-class Rating {
-    @Attribute(.unique) var id: UUID
-    var stars: Int
-    var tags: [String]
-    var createdAt: Date
+// MARK: - Reputación
 
-    var claim: Claim?
-    var student: Student?
-    var elderlyPerson: ElderlyPerson?
+struct APIBadge: Codable, Identifiable, Hashable, Sendable {
+    let slug: String
+    let title: String
+    let description: String
+    let icon: String
+    let earnedAt: String
 
-    init(stars: Int, tags: [String] = []) {
-        self.id = UUID()
-        self.stars = stars
-        self.tags = tags
-        self.createdAt = Date()
-    }
+    var id: String { slug }
 }
 
-// MARK: - ServiceHours
-@Model
-class ServiceHours {
-    @Attribute(.unique) var id: UUID
-    var hours: Double
-    var activityType: ActivityType
-    var date: Date
-    var isVerified: Bool
-
-    var claim: Claim?
-    var student: Student?
-
-    init(hours: Double, activityType: ActivityType) {
-        self.id = UUID()
-        self.hours = hours
-        self.activityType = activityType
-        self.date = Date()
-        self.isVerified = false
-    }
+struct APIRating: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let stars: Int
+    let tags: [String]
+    let comment: String
+    let authorName: String
+    let createdAt: String
 }
 
-// MARK: - ModelContainer
-extension ModelContainer {
-    static var acompana: ModelContainer = {
-        let schema = Schema([
-            FamilyMember.self,
-            ElderlyPerson.self,
-            ActivityRequest.self,
-            Student.self,
-            Claim.self,
-            Rating.self,
-            ServiceHours.self
-        ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        return try! ModelContainer(for: schema, configurations: config)
+struct StudentProfile: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let universityName: String
+    let career: String
+    let totalHours: Double
+    let averageRating: Double
+    let badges: [APIBadge]
+    let ratings: [APIRating]
+}
+
+// MARK: - Ubicación
+
+struct APILocation: Codable, Hashable, Sendable {
+    let role: String        // student | elderly
+    let latitude: Double
+    let longitude: Double
+    let recordedAt: String
+}
+
+// MARK: - APIRequest  (respuesta del servidor)
+
+struct APIRequest: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let activityType: String
+    let details: String
+    let scheduledDate: String   // ISO8601 string
+    let isUrgent: Bool
+    let status: String
+    let publishedAt: String
+    let latitude: Double
+    let longitude: Double
+    let elderlyName: String
+    let neighborhood: String
+    let matchScore: Int
+    let duration: String
+    let hours: Double
+
+    // MARK: Computed helpers
+
+    var activityTypeEnum: ActivityType {
+        ActivityType(rawValue: activityType) ?? .compania
+    }
+
+    var statusEnum: RequestStatus {
+        RequestStatus(rawValue: status) ?? .open
+    }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
     }()
+
+    private static let isoFormatterNoFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    var scheduledDateParsed: Date {
+        APIRequest.isoFormatter.date(from: scheduledDate)
+            ?? APIRequest.isoFormatterNoFrac.date(from: scheduledDate)
+            ?? Date()
+    }
+
+    var scheduledDateFormatted: String {
+        let date = scheduledDateParsed
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        let cal = Calendar.current
+        if cal.isDateInToday(date) {
+            df.dateFormat = "'Hoy · 'HH:mm"
+        } else if cal.isDateInTomorrow(date) {
+            df.dateFormat = "'Mañana · 'HH:mm"
+        } else {
+            df.dateFormat = "EEE d MMM · HH:mm"
+        }
+        return df.string(from: date)
+    }
+
+    var timeWindow: TimeWindow {
+        TimeWindow.from(date: scheduledDateParsed)
+    }
+
+    // MARK: Conversion helpers
+
+    func toFamilyRequestItem() -> FamilyRequestItem {
+        FamilyRequestItem(
+            id: id,
+            activityType: activityTypeEnum,
+            status: statusEnum,
+            title: activityTypeEnum.label,
+            when: scheduledDateFormatted,
+            isUrgent: isUrgent,
+            student: nil,
+            eta: nil,
+            aiSummary: nil,
+            completedRating: nil
+        )
+    }
+
+    func toOpenRequest() -> OpenRequest {
+        OpenRequest(
+            id: id,
+            activityType: activityTypeEnum,
+            neighborhood: neighborhood,
+            timeWindow: timeWindow,
+            duration: duration,
+            hours: hours,
+            isUrgent: isUrgent,
+            latitude: latitude,
+            longitude: longitude,
+            distance: "~1 km",
+            matchScore: matchScore,
+            elderlyName: elderlyName,
+            title: activityTypeEnum.label,
+            description: details
+        )
+    }
 }

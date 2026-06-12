@@ -5,7 +5,7 @@ enum StudentTab: Hashable {
 }
 
 struct StudentRootView: View {
-    let onSwitchRole: () -> Void
+    let onLogout: () -> Void
     @State private var selectedTab: StudentTab = .map
 
     var body: some View {
@@ -18,7 +18,7 @@ struct StudentRootView: View {
                         }
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                roleButton
+                                logoutButton
                             }
                         }
                 }
@@ -28,7 +28,7 @@ struct StudentRootView: View {
                     StudentCommitmentsView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                roleButton
+                                logoutButton
                             }
                         }
                 }
@@ -38,7 +38,7 @@ struct StudentRootView: View {
                     StudentHoursView()
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                roleButton
+                                logoutButton
                             }
                         }
                 }
@@ -47,13 +47,13 @@ struct StudentRootView: View {
         .tint(.acoStudent)
     }
 
-    private var roleButton: some View {
-        Button("Cambiar rol", action: onSwitchRole)
+    private var logoutButton: some View {
+        Button("Cerrar sesión", action: onLogout)
             .font(.caption)
             .foregroundStyle(Color.acoInk3)
     }
 }
 
 #Preview {
-    StudentRootView(onSwitchRole: {})
+    StudentRootView(onLogout: {})
 }

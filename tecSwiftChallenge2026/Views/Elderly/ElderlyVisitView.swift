@@ -1,130 +1,108 @@
 import SwiftUI
 
+enum ElderlyDestination: Hashable {
+    case rating
+}
+
 struct ElderlyVisitView: View {
     @State private var isOnWay: Bool = true
     @State private var hasArrived: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let studentName = "Carlos"
+    private let studentName     = "Carlos"
     private let studentFullName = "Carlos Méndez"
+    private let initials        = "CM"
 
     var body: some View {
-        ZStack {
-            Color.acoBg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                // Top label
-                Text("Hoy te visita")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.acoElderly)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        // Big avatar with optional pulse ring
-                        ZStack {
-                            if isOnWay && !hasArrived && !reduceMotion {
-                                PulseRing(color: .acoElderly)
-                            }
-                            AvatarView(name: studentFullName, tint: .acoElderly, size: 168)
-                        }
-                        .padding(.top, 6)
-                        .frame(width: 220, height: 220)
-
-                        Text(studentName)
-                            .font(.system(size: 44, weight: .heavy))
-                            .foregroundStyle(Color.acoInk)
-                            .tracking(-1)
-                            .padding(.top, 22)
-
-                        Text("Estudiante de la UNAM")
-                            .font(.title3)
-                            .foregroundStyle(Color.acoInk2)
-                            .padding(.top, 4)
-
-                        // Activity summary card
-                        VStack(spacing: 10) {
-                            Text("🛒")
-                                .font(.system(size: 48))
-                                .accessibilityHidden(true)
-                            Text("Te va a ayudar con\nel mandado del super")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.acoInk)
-                                .multilineTextAlignment(.center)
-                                .lineSpacing(2)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 22)
-                        .background(Color.acoElderlySoft)
-                        .clipShape(.rect(cornerRadius: 22))
-                        .padding(.horizontal, 24)
-                        .padding(.top, 26)
-
-                        // Status
-                        if isOnWay && !hasArrived {
-                            onWayStatus
-                                .padding(.top, 26)
-                                .padding(.horizontal, 24)
-                        } else if !isOnWay {
-                            scheduledArrivalTime
-                                .padding(.top, 26)
-                        }
-
-                        Spacer().frame(height: 20)
-                    }
-                }
-                .scrollIndicators(.hidden)
-
-                // Bottom action
-                VStack(spacing: 14) {
-                    Divider()
-                    if !hasArrived {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                hasArrived = true
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                Text("👋").font(.system(size: 32)).accessibilityHidden(true)
-                                Text("Ya llegó")
-                                    .font(.system(size: 30, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 26)
-                            .background(Color.acoElderly)
-                            .clipShape(.rect(cornerRadius: 24))
-                            .shadow(color: Color.acoElderly.opacity(0.42), radius: 11, y: 8)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Ya llegó Carlos")
-                        .sensoryFeedback(.impact, trigger: hasArrived)
-                    } else {
-                        arrivedConfirmation
-                    }
-
-                    Text("Toca el botón cuando \(studentName) toque la puerta")
-                        .font(.body)
-                        .foregroundStyle(Color.acoInk3)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
-                .background(Color.acoBg)
-            }
+        VStack(spacing: 0) {
+            studentHeader
+            scrollContent
+            actionZone
         }
+        .background(Color.acoBg.ignoresSafeArea())
+        .ignoresSafeArea(edges: .top)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    // MARK: - Header — naranja comprometido
+
+    private var studentHeader: some View {
+        ZStack(alignment: .bottom) {
+            Color.acoElderly.ignoresSafeArea(edges: .top)
+
+            VStack(spacing: 10) {
+                // Avatar con ring pulsante
+                ZStack {
+                    if isOnWay && !hasArrived && !reduceMotion {
+                        PulseRing(color: .white.opacity(0.45))
+                    }
+                    Circle()
+                        .fill(Color.white.opacity(0.16))
+                        .frame(width: 86, height: 86)
+                    Text(initials)
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 106, height: 106)
+
+                VStack(spacing: 6) {
+                    Text(studentName)
+                        .font(.system(size: 44, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .tracking(-0.5)
+                    Text("Estudiante de la UNAM")
+                        .font(.title3)
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 64)
+            .padding(.bottom, 30)
+        }
+    }
+
+    // MARK: - Scroll content
+
+    private var scrollContent: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Actividad
+                VStack(spacing: 10) {
+                    Text("🛒")
+                        .font(.system(size: 42))
+                        .accessibilityHidden(true)
+                    Text("Te va a ayudar con\nel mandado del super")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.acoInk)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 22)
+                .background(Color.acoElderlySoft)
+                .clipShape(.rect(cornerRadius: 14))
+
+                // Estado
+                if isOnWay && !hasArrived {
+                    onWayStatus
+                } else if !isOnWay {
+                    scheduledTime
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 20)
+        }
+        .scrollIndicators(.hidden)
+    }
+
     private var onWayStatus: some View {
         HStack(spacing: 12) {
-            PulsingDot(color: .acoElderly, pulse: true, size: 16)
+            PulsingDot(color: .acoElderly, pulse: true, size: 13)
             Text("Carlos va en camino")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .foregroundStyle(Color.acoElderly)
         }
@@ -132,10 +110,10 @@ struct ElderlyVisitView: View {
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
         .background(Color(acoHex: "FBEDE2"))
-        .clipShape(.rect(cornerRadius: 20))
+        .clipShape(.rect(cornerRadius: 14))
     }
 
-    private var scheduledArrivalTime: some View {
+    private var scheduledTime: some View {
         VStack(spacing: 4) {
             Text("Llega a las")
                 .font(.title3)
@@ -151,8 +129,53 @@ struct ElderlyVisitView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var arrivedConfirmation: some View {
+    // MARK: - Zona de acción fija
+
+    private var actionZone: some View {
         VStack(spacing: 14) {
+            Rectangle()
+                .fill(Color.acoHair)
+                .frame(height: 1)
+            if !hasArrived {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        hasArrived = true
+                    }
+                } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "hand.wave.fill")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .accessibilityHidden(true)
+                        Text("Ya llegó")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 22)
+                    .background(Color.acoElderly)
+                    .clipShape(.rect(cornerRadius: 20))
+                    .shadow(color: Color.acoElderly.opacity(0.4), radius: 14, x: 0, y: 7)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ya llegó \(studentName)")
+                .sensoryFeedback(.impact, trigger: hasArrived)
+            } else {
+                arrivedConfirmation
+            }
+
+            Text("Toca el botón cuando \(studentName) toque la puerta")
+                .font(.body)
+                .foregroundStyle(Color.acoInk3)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 40)
+        .background(Color.acoBg)
+    }
+
+    private var arrivedConfirmation: some View {
+        VStack(spacing: 16) {
             Label("¡Llegada confirmada!", systemImage: "checkmark.circle.fill")
                 .font(.title3)
                 .fontWeight(.bold)
@@ -170,17 +193,18 @@ struct ElderlyVisitView: View {
     }
 }
 
-// Separate pulsing ring view to keep ElderlyVisitView's body cleaner
+// MARK: - Pulse ring
+
 private struct PulseRing: View {
     let color: Color
     @State private var animating = false
 
     var body: some View {
         Circle()
-            .strokeBorder(color, lineWidth: 5)
-            .frame(width: 188, height: 188)
-            .scaleEffect(animating ? 1.18 : 1)
-            .opacity(animating ? 0 : 0.7)
+            .strokeBorder(color, lineWidth: 4)
+            .frame(width: 102, height: 102)
+            .scaleEffect(animating ? 1.20 : 1)
+            .opacity(animating ? 0 : 0.65)
             .animation(.easeOut(duration: 1.8).repeatForever(autoreverses: false), value: animating)
             .onAppear { animating = true }
     }

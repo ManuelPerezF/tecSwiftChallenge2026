@@ -93,14 +93,14 @@ struct BadgeLabel: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11.5, weight: .bold))
+            .font(.system(size: 11, weight: .bold))
             .textCase(.uppercase)
             .tracking(0.3)
             .foregroundStyle(color)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.12))
-            .clipShape(.rect(cornerRadius: 7))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.11))
+            .clipShape(.rect(cornerRadius: 6))
     }
 }
 
@@ -121,6 +121,7 @@ struct StarRating: View {
 }
 
 // MARK: - AcoCard
+// Radius reducido 20→14, superficie levemente más cálida, sombra más sutil
 struct AcoCard<Content: View>: View {
     var padding: CGFloat = 16
     @ViewBuilder let content: () -> Content
@@ -128,12 +129,13 @@ struct AcoCard<Content: View>: View {
     var body: some View {
         content()
             .padding(padding)
-            .background(Color.white)
-            .clipShape(.rect(cornerRadius: 20))
-            .shadow(color: Color(acoHex: "3C3228").opacity(0.04), radius: 2, x: 0, y: 1)
+            .background(Color(acoHex: "FDFBF8"))
+            .clipShape(.rect(cornerRadius: 16))
+            .shadow(color: Color(acoHex: "2A1F14").opacity(0.07), radius: 8, x: 0, y: 3)
+            .shadow(color: Color(acoHex: "2A1F14").opacity(0.03), radius: 1, x: 0, y: 1)
             .overlay {
-                RoundedRectangle(cornerRadius: 20)
-                    .strokeBorder(Color(acoHex: "3C3228").opacity(0.05), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(Color(acoHex: "3C3228").opacity(0.055), lineWidth: 1)
             }
     }
 }
@@ -150,16 +152,16 @@ struct CTAButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
-                if let e = leadingEmoji { Text(e).font(.system(size: big ? 20 : 18)) }
+                if let e = leadingEmoji { Text(e).font(.system(size: big ? 20 : 17)) }
                 Text(label)
-                    .font(.system(size: big ? 21 : 17, weight: .semibold))
+                    .font(.system(size: big ? 20 : 17, weight: .semibold))
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, big ? 20 : 16)
+            .padding(.vertical, big ? 18 : 16)
             .background(disabled ? Color(acoHex: "D8CFC4") : tint)
-            .clipShape(.rect(cornerRadius: big ? 20 : 16))
-            .shadow(color: disabled ? .clear : tint.opacity(0.33), radius: 9, x: 0, y: 6)
+            .clipShape(.rect(cornerRadius: big ? 20 : 15))
+            .shadow(color: disabled ? .clear : tint.opacity(0.32), radius: 10, x: 0, y: 5)
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -172,13 +174,12 @@ struct SectionLabel: View {
 
     var body: some View {
         Text(text)
-            .font(.caption)
-            .fontWeight(.semibold)
+            .font(.system(size: 11, weight: .bold))
             .textCase(.uppercase)
-            .tracking(0.4)
+            .tracking(0.7)
             .foregroundStyle(Color.acoInk3)
-            .padding(.bottom, 8)
-            .padding(.horizontal, 4)
+            .padding(.bottom, 10)
+            .padding(.horizontal, 2)
     }
 }
 
@@ -198,7 +199,7 @@ struct UniversityBadge: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 3)
         .background(color.opacity(0.08))
-        .clipShape(.rect(cornerRadius: 7))
+        .clipShape(.rect(cornerRadius: 6))
     }
 }
 
@@ -219,7 +220,7 @@ struct StatusRow: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            PulsingDot(color: statusColor, pulse: status == .inProgress, size: 9)
+            PulsingDot(color: statusColor, pulse: status == .inProgress, size: 8)
             Text(status.label)
                 .font(.subheadline)
                 .fontWeight(.semibold)

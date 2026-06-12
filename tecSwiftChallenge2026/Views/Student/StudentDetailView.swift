@@ -4,6 +4,8 @@ struct StudentDetailView: View {
     let request: OpenRequest
     @State private var selectedTime: String = "10:30"
     @State private var isClaimed: Bool = false
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String?
 
     private let timeSlots = ["9:00", "9:30", "10:00", "10:30", "11:00", "11:30"]
 
@@ -20,54 +22,39 @@ struct StudentDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    // MARK: - Claimed confirmation
+    // MARK: - Confirmación
+
     private var claimedConfirmation: some View {
         ScrollView {
             VStack(spacing: 0) {
-                Spacer().frame(height: 40)
+                Spacer().frame(height: 48)
                 ZStack {
                     Circle().fill(Color.acoStudentSoft).frame(width: 88, height: 88)
                     Text("✅").font(.system(size: 40)).accessibilityHidden(true)
                 }
-                Text("¡Te apuntaste!")
+                Text("¡Postulación enviada!")
                     .font(.title2).fontWeight(.bold).foregroundStyle(Color.acoInk)
                     .padding(.top, 20)
 
-                Text("La familia de \(request.elderlyName) ya fue notificada. Aquí está la dirección exacta:")
+                Text("La familia de \(request.elderlyName) revisará tu perfil. Cuando te aprueben, la visita aparecerá en \u{201C}Mis visitas\u{201D} con la dirección exacta.")
                     .font(.body).foregroundStyle(Color.acoInk2)
                     .multilineTextAlignment(.center).padding(.horizontal, 32).padding(.top, 10)
-
-                AcoCard {
-                    HStack(alignment: .top, spacing: 11) {
-                        Text("📍").font(.title3).accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Av. Coyoacán 1435, int. 3")
-                                .font(.headline).foregroundStyle(Color.acoInk)
-                            Text("Col. \(request.neighborhood) · \(request.distance)")
-                                .font(.subheadline).foregroundStyle(Color.acoInk2)
-                        }
-                    }
-                }
-                .padding(.horizontal, 24).padding(.top, 20)
-
-                CTAButton(label: "Ver en mis visitas", tint: .acoStudent) {}
-                    .padding(.horizontal, 24).padding(.top, 22).padding(.bottom, 40)
+                    .padding(.bottom, 40)
             }
         }
         .scrollIndicators(.hidden)
     }
 
-    // MARK: - Detail content
+    // MARK: - Detalle
+
     private var detailContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Hero
-                VStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.acoStudentSoft).frame(width: 84, height: 84)
-                        Text(request.activityType.emoji).font(.system(size: 40)).accessibilityHidden(true)
-                    }
+                // Hero — actividad + badges, sin card wrapper
+                VStack(spacing: 12) {
+                    Text(request.activityType.emoji)
+                        .font(.system(size: 48))
+                        .accessibilityHidden(true)
                     HStack(spacing: 7) {
                         BadgeLabel(text: request.activityType.label, color: .acoStudent)
                         if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
@@ -77,19 +64,20 @@ struct StudentDetailView: View {
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 20)
 
-                // Description
+                // Descripción
                 AcoCard {
                     Text("\u{201C}\(request.description)\u{201D}")
                         .font(.body).foregroundStyle(Color.acoInk).lineSpacing(3)
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
 
-                // Elderly privacy card
-                AcoCard(padding: 14) {
+                // Privacy card del adulto mayor
+                AcoCard(padding: 13) {
                     HStack(spacing: 12) {
-                        AvatarView(name: request.elderlyName, tint: .acoElderly, size: 42)
+                        AvatarView(name: request.elderlyName, tint: .acoElderly, size: 40)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(request.elderlyName)
                                 .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoInk)
@@ -105,36 +93,34 @@ struct StudentDetailView: View {
                         }
                     }
                 }
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
 
-                // Facts grid
-                HStack(spacing: 10) {
+                // Datos clave — 3 celdas inline sin card individual
+                HStack(spacing: 8) {
                     factCell(emoji: "🕑", value: request.timeWindow.shortLabel, label: "horario")
-                    factCell(emoji: "⏱️", value: request.duration, label: "duración")
-                    factCell(emoji: "⭐️",
-                             value: "+\(hoursFormatted(request.hours)) h",
-                             label: "servicio")
+                    factCell(emoji: "⏱️", value: request.duration,             label: "duración")
+                    factCell(emoji: "⭐️", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
                 }
                 .padding(.bottom, 14)
 
-                // AI suggestion
+                // Sugerencia IA — integrada, sin card flotante
                 HStack(alignment: .top, spacing: 10) {
                     Text("✨").font(.body).accessibilityHidden(true)
                     Text("**Mejor hora para ti:** según tu agenda, el **jueves por la mañana** te queda perfecto entre clases.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(acoHex: "13684D"))
+                        .font(.subheadline)
+                        .foregroundStyle(Color(acoHex: "13684D"))
                 }
                 .padding(13)
                 .background(Color.acoStudentSoft)
-                .clipShape(.rect(cornerRadius: 16))
+                .clipShape(.rect(cornerRadius: 12))
                 .padding(.bottom, 20)
 
-                // Time picker
+                // Selector de hora
                 Text("Propón tu hora de llegada")
                     .font(.caption).fontWeight(.bold).textCase(.uppercase)
                     .tracking(0.3).foregroundStyle(Color.acoStudent).padding(.bottom, 10)
 
-                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 9) {
+                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 8) {
                     ForEach(timeSlots, id: \.self) { slot in
                         Button {
                             withAnimation(.easeInOut(duration: 0.12)) { selectedTime = slot }
@@ -143,9 +129,15 @@ struct StudentDetailView: View {
                                 .font(.body).fontWeight(.semibold)
                                 .foregroundStyle(selectedTime == slot ? .white : Color.acoInk)
                                 .frame(maxWidth: .infinity).padding(.vertical, 11)
-                                .background(selectedTime == slot ? Color.acoStudent : Color.white)
-                                .clipShape(.rect(cornerRadius: 13))
-                                .shadow(color: Color(acoHex: "3C3228").opacity(0.05), radius: 1, y: 1)
+                                .background(selectedTime == slot ? Color.acoStudent : Color(acoHex: "FDFAF6"))
+                                .clipShape(.rect(cornerRadius: 11))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 11)
+                                        .strokeBorder(
+                                            selectedTime == slot ? Color.clear : Color(acoHex: "3C3228").opacity(0.08),
+                                            lineWidth: 1
+                                        )
+                                }
                                 .animation(.easeInOut(duration: 0.12), value: selectedTime)
                         }
                         .buttonStyle(.plain)
@@ -153,16 +145,25 @@ struct StudentDetailView: View {
                         .accessibilityAddTraits(selectedTime == slot ? .isSelected : [])
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 22)
 
-                CTAButton(label: "Apuntarme a esta actividad", tint: .acoStudent, big: true) {
-                    withAnimation(.easeInOut(duration: 0.22)) { isClaimed = true }
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(Color.acoUrgent)
+                        .padding(.bottom, 10)
                 }
+
+                CTAButton(
+                    label: isLoading ? "Enviando…" : "Postularme a esta actividad",
+                    tint: .acoStudent,
+                    big: true,
+                    disabled: isLoading
+                ) { Task { await apply() } }
 
                 Text("Llegada propuesta: \(request.timeWindow.shortLabel.lowercased()), \(selectedTime)")
                     .font(.caption).foregroundStyle(Color.acoInk3)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 11).padding(.bottom, 40)
+                    .padding(.top, 10).padding(.bottom, 40)
             }
             .padding(.horizontal, 20).padding(.top, 12)
         }
@@ -170,13 +171,33 @@ struct StudentDetailView: View {
     }
 
     private func factCell(emoji: String, value: String, label: String) -> some View {
-        AcoCard(padding: 13) {
-            VStack(spacing: 5) {
+        AcoCard(padding: 12) {
+            VStack(spacing: 4) {
                 Text(emoji).font(.title3).accessibilityHidden(true)
                 Text(value).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
                 Text(label).font(.caption2).foregroundStyle(Color.acoInk3)
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func apply() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            _ = try await APIClient.shared.applyToRequest(
+                requestId: request.id,
+                message: "Puedo llegar a las \(selectedTime)."
+            )
+            await MainActor.run {
+                isLoading = false
+                withAnimation(.easeInOut(duration: 0.22)) { isClaimed = true }
+            }
+        } catch {
+            await MainActor.run {
+                isLoading = false
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
