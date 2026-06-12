@@ -1,104 +1,137 @@
 import SwiftUI
 
 struct FamilyStudentProfileView: View {
-    let request: FamilyRequestItem
+    let studentId: String
 
-    private var student: StudentMini {
-        request.student ?? StudentMini(name: "Carlos Méndez", uni: "UNAM", career: "Medicina", hours: 84, rating: 4.9)
-    }
-
-    private let reviews: [(tags: [String], rating: Int, family: String)] = [
-        (tags: ["Muy amable", "Puntual"],     rating: 5, family: "Fam. Robles"),
-        (tags: ["Volvería a pedirlo"],         rating: 5, family: "Fam. Núñez"),
-    ]
+    @State private var profile: StudentProfile?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         ZStack {
             Color.acoBg.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Hero — directo, sin card
-                    VStack(spacing: 0) {
-                        AvatarView(name: student.name, tint: .acoFamily, size: 96, ring: true)
-                            .padding(.bottom, 14)
 
-                        Text(student.name.components(separatedBy: " ").first ?? student.name)
-                            .font(.title)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.acoInk)
-
-                        HStack(spacing: 8) {
-                            UniversityBadge(university: student.uni, color: .acoFamily)
-                            BadgeLabel(text: student.career, color: .acoInk2)
-                        }
-                        .padding(.top, 10)
-                        .frame(maxWidth: .infinity)
+            if isLoading && profile == nil {
+                ProgressView("Cargando perfil…").tint(Color.acoFamily)
+            } else if let errorMessage, profile == nil {
+                VStack(spacing: 12) {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.body)
+                        .foregroundStyle(Color.acoUrgent)
                         .multilineTextAlignment(.center)
-                    }
-                    .padding(.bottom, 26)
+                    Button("Reintentar") { Task { await load() } }
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.acoFamily)
+                }
+                .padding(.horizontal, 32)
+            } else if let profile {
+                profileContent(profile)
+            }
+        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+        .refreshable { await load() }
+    }
 
-                    // Estadísticas — dos filas de datos, sin card grid
+    @ViewBuilder
+    private func profileContent(_ profile: StudentProfile) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    AvatarView(name: profile.name, tint: .acoFamily, size: 96, ring: true)
+                        .padding(.bottom, 14)
+
+                    Text(profile.name.components(separatedBy: " ").first ?? profile.name)
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.acoInk)
+
                     HStack(spacing: 8) {
-                        statCell(
-                            value: "\(student.hours)",
-                            label: "horas de servicio",
-                            color: .acoFamily
-                        )
-                        statCell(
-                            value: String(format: "%.1f ★", student.rating),
-                            label: "de otras familias",
-                            color: .acoStar
-                        )
+                        UniversityBadge(university: profile.universityName, color: .acoFamily)
+                        if !profile.career.isEmpty {
+                            BadgeLabel(text: profile.career, color: .acoInk2)
+                        }
                     }
-                    .padding(.bottom, 24)
+                    .padding(.top, 10)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                }
+                .padding(.bottom, 26)
 
-                    // Reseñas
-                    SectionLabel(text: "Lo que dicen otras familias")
+                HStack(spacing: 8) {
+                    statCell(
+                        value: hoursText(profile.totalHours),
+                        label: "horas de servicio",
+                        color: .acoFamily
+                    )
+                    statCell(
+                        value: profile.averageRating > 0
+                            ? String(format: "%.1f ★", profile.averageRating)
+                            : "Nuevo",
+                        label: "de otras familias",
+                        color: .acoStar
+                    )
+                }
+                .padding(.bottom, 24)
+
+                SectionLabel(text: "Lo que dicen otras familias")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if profile.ratings.isEmpty {
+                    Text("Aún no hay reseñas de otras familias.")
+                        .font(.body)
+                        .foregroundStyle(Color.acoInk3)
                         .frame(maxWidth: .infinity, alignment: .leading)
-
+                        .padding(.top, 4)
+                } else {
                     VStack(spacing: 8) {
-                        ForEach(reviews.indices, id: \.self) { i in
+                        ForEach(profile.ratings) { rating in
                             AcoCard(padding: 13) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
-                                        StarRating(value: Double(reviews[i].rating), size: 13)
+                                        StarRating(value: Double(rating.stars), size: 13)
                                         Spacer()
-                                        Text(reviews[i].family)
+                                        Text(rating.authorName)
                                             .font(.caption)
                                             .foregroundStyle(Color.acoInk3)
                                     }
-                                    HStack(spacing: 6) {
-                                        ForEach(reviews[i].tags, id: \.self) { tag in
-                                            ChipButton(label: tag, tint: .acoDone, soft: Color(acoHex: "EFF1E6"), isActive: false) {}
+                                    if !rating.tags.isEmpty {
+                                        HStack(spacing: 6) {
+                                            ForEach(rating.tags, id: \.self) { tag in
+                                                ChipButton(label: tag, tint: .acoDone, soft: Color(acoHex: "EFF1E6"), isActive: false) {}
+                                            }
                                         }
+                                    }
+                                    if !rating.comment.isEmpty {
+                                        Text(rating.comment)
+                                            .font(.caption)
+                                            .foregroundStyle(Color.acoInk2)
                                     }
                                 }
                             }
                         }
                     }
-
-                    // CTA
-                    VStack(spacing: 10) {
-                        CTAButton(label: "Enviar mensaje", leadingSymbol: "bubble.left.fill", tint: .acoFamily) {}
-                        HStack(spacing: 6) {
-                            Image(systemName: "lock.fill")
-                                .font(.caption2)
-                                .foregroundStyle(Color.acoInk3)
-                            Text("Solo mensajería en la app — sin números de teléfono")
-                                .font(.caption)
-                                .foregroundStyle(Color.acoInk3)
-                        }
-                    }
-                    .padding(.top, 22)
-                    .padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
+
+                VStack(spacing: 10) {
+                    CTAButton(label: "Enviar mensaje", leadingSymbol: "bubble.left.fill", tint: .acoFamily) {}
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(Color.acoInk3)
+                        Text("Solo mensajería en la app — sin números de teléfono")
+                            .font(.caption)
+                            .foregroundStyle(Color.acoInk3)
+                    }
+                }
+                .padding(.top, 22)
+                .padding(.bottom, 40)
             }
-            .scrollIndicators(.hidden)
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollIndicators(.hidden)
     }
 
     private func statCell(value: String, label: String, color: Color) -> some View {
@@ -114,10 +147,27 @@ struct FamilyStudentProfileView: View {
             .frame(maxWidth: .infinity)
         }
     }
+
+    private func hoursText(_ hours: Double) -> String {
+        hours.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", hours)
+            : String(format: "%.1f", hours)
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            profile = try await APIClient.shared.fetchStudentProfile(id: studentId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
 }
 
 #Preview {
     NavigationStack {
-        FamilyStudentProfileView(request: sampleFamilyRequests[0])
+        FamilyStudentProfileView(studentId: "preview-student")
     }
 }

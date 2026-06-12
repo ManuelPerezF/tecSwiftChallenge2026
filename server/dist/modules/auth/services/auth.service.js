@@ -99,9 +99,9 @@ export const authService = {
             else {
                 // elderly: perfil sin familia hasta que use el código
                 db.prepare(`
-          INSERT INTO elderly_profiles (id, user_id, first_name, address, neighborhood)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(uuidv4(), userId, data.name.trim(), data.address?.trim() || "CDMX", data.neighborhood?.trim() || "CDMX");
+          INSERT INTO elderly_profiles (id, user_id, first_name, address, neighborhood, lat, lng)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(uuidv4(), userId, data.name.trim(), data.address?.trim() ?? "", data.neighborhood?.trim() ?? "", data.lat ?? 0, data.lng ?? 0);
             }
         });
         tx();
@@ -135,6 +135,13 @@ export const authService = {
         if (data.token) {
             db.prepare("DELETE FROM sessions WHERE id = ?").run(data.token);
         }
+        return { ok: true };
+    },
+    updateElderlyLocation(auth, lat, lng) {
+        if (!auth.elderlyProfileId)
+            throw new AppError("Solo adultos mayores pueden usar este endpoint", 403, "FORBIDDEN");
+        db.prepare("UPDATE elderly_profiles SET lat = ?, lng = ? WHERE id = ?")
+            .run(lat, lng, auth.elderlyProfileId);
         return { ok: true };
     },
 };

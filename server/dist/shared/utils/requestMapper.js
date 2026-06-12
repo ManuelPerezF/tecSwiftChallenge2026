@@ -31,6 +31,13 @@ function durationLabel(activityType) {
 function activityHours(activityType) {
     return ACTIVITY_HOURS[activityType] ?? 1;
 }
+function formatDuration(minutes) {
+    if (minutes < 60)
+        return `${minutes} min`;
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
 export function normalizeRequest(row) {
     return {
         id: row.id,
@@ -47,8 +54,8 @@ export function normalizeRequest(row) {
         elderlyName: row.elderly_name ?? "Tu familiar",
         neighborhood: row.neighborhood ?? "CDMX",
         matchScore: matchScore(row.activity_type),
-        duration: durationLabel(row.activity_type),
-        hours: activityHours(row.activity_type),
+        duration: row.duration_minutes ? formatDuration(row.duration_minutes) : durationLabel(row.activity_type),
+        hours: row.duration_minutes ? row.duration_minutes / 60 : activityHours(row.activity_type),
     };
 }
 //# sourceMappingURL=requestMapper.js.map

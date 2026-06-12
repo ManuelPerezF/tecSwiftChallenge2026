@@ -3,7 +3,10 @@ import { db } from "../../../shared/db/sqlite.js";
 import { AppError, NotFoundError, UnauthorizedError, ValidationError } from "../../../shared/errors/appError.js";
 import { normalizeRequest, } from "../../../shared/utils/requestMapper.js";
 const SELECT_WITH_ELDERLY = `
-  SELECT r.*, e.first_name AS elderly_name, e.neighborhood
+  SELECT r.*,
+         e.first_name AS elderly_name, e.neighborhood,
+         CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
+         CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude
   FROM   activity_requests r
   LEFT JOIN elderly_profiles e ON r.elderly_profile_id = e.id
 `;
@@ -48,15 +51,17 @@ export const requestsService = {
                 .prepare("SELECT id, family_id, lat, lng FROM elderly_profiles WHERE family_id = ? LIMIT 1")
                 .get(auth.familyId);
         }
-        // Coordenadas: domicilio del adulto, con jitter pequeño si no hay perfil
-        const latitude = elderly?.lat ?? 19.3826 + (Math.random() * 0.018 - 0.006);
-        const longitude = elderly?.lng ?? -99.1677 + (Math.random() * 0.02 - 0.01);
+        // Coordenadas: preferir GPS enviado por la familia, luego perfil del adulto mayor
+        const elderlyLat = elderly?.lat && elderly.lat !== 0 ? elderly.lat : null;
+        const elderlyLng = elderly?.lng && elderly.lng !== 0 ? elderly.lng : null;
+        const latitude = data.lat ?? elderlyLat ?? 0;
+        const longitude = data.lng ?? elderlyLng ?? 0;
         const requestId = uuidv4();
         db.prepare(`
       INSERT INTO activity_requests
-        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(requestId, auth.familyId, elderly?.id ?? null, data.activityType, data.details, data.scheduledDate, data.isUrgent ? 1 : 0, latitude, longitude);
+        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(requestId, auth.familyId, elderly?.id ?? null, data.activityType, data.details, data.scheduledDate, data.isUrgent ? 1 : 0, latitude, longitude, data.durationMinutes ?? null);
         return this.findById(requestId);
     },
     remove(auth, id) {

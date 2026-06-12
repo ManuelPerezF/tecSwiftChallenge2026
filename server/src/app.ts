@@ -13,7 +13,7 @@ import { errorMiddleware } from "./shared/middlewares/error.middleware.js";
 import { attachWebSocketServer } from "./ws/socketServer.js";
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT ?? 3000);
 
 app.use(cors());
 app.use(express.json());

@@ -8,9 +8,16 @@ const dbPath = path.join(__dirname, "kuidar.db");
 export const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+// Safe column migrations (no version bump needed — idempotent)
+function addColumnIfMissing(table, column, definition) {
+    try {
+        db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+    }
+    catch { }
+}
 // ── Schema versioning ─────────────────────────────────────────────
 // v2 introduce families/applications/assignments; si la DB es vieja se recrea.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const currentVersion = db.pragma("user_version", { simple: true }) ?? 0;
 if (currentVersion < SCHEMA_VERSION) {
     db.exec(`
@@ -86,10 +93,10 @@ db.exec(`
     user_id      TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     family_id    TEXT REFERENCES families(id) ON DELETE SET NULL,
     first_name   TEXT NOT NULL,
-    address      TEXT NOT NULL DEFAULT 'CDMX',
-    neighborhood TEXT NOT NULL DEFAULT 'CDMX',
-    lat          REAL NOT NULL DEFAULT 19.3826,
-    lng          REAL NOT NULL DEFAULT -99.1677
+    address      TEXT NOT NULL DEFAULT '',
+    neighborhood TEXT NOT NULL DEFAULT '',
+    lat          REAL NOT NULL DEFAULT 0,
+    lng          REAL NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS activity_requests (
@@ -184,11 +191,12 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_applications_request ON applications(request_id);
   CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id);
 `);
-// Migración incremental: columna inicio_solicitado_at en DBs existentes
+// Migraciones incrementales
 const assignmentCols = db.prepare("PRAGMA table_info(assignments)").all();
 if (!assignmentCols.some((c) => c.name === "inicio_solicitado_at")) {
     db.exec("ALTER TABLE assignments ADD COLUMN inicio_solicitado_at TEXT");
 }
+addColumnIfMissing("activity_requests", "duration_minutes", "INTEGER");
 // ── Seed ──────────────────────────────────────────────────────────
 export function generateFamilyCode() {
     const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // sin 0/O/1/I/L
@@ -226,10 +234,11 @@ if (badgeCount.n === 0) {
 }
 const userCount = db.prepare("SELECT COUNT(*) AS n FROM users").get();
 if (userCount.n === 0) {
+    const demoPassword = process.env.DEMO_PASSWORD ?? "demo123";
     const insertUser = db.prepare("INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)");
     // Familiar demo + familia
     const familyUserId = uuidv4();
-    insertUser.run(familyUserId, "familia@kuidar.app", hashPassword("demo123"), "María García", "family");
+    insertUser.run(familyUserId, "familia@kuidar.app", hashPassword(demoPassword), "María García", "family");
     const familyId = uuidv4();
     db.prepare("INSERT INTO families (id, name, family_code) VALUES (?, ?, ?)")
         .run(familyId, "Familia García", "KUIDAR");
@@ -237,13 +246,13 @@ if (userCount.n === 0) {
         .run(uuidv4(), familyUserId, familyId);
     // Estudiante demo
     const studentUserId = uuidv4();
-    insertUser.run(studentUserId, "becario@kuidar.app", hashPassword("demo123"), "Carlos Ruiz", "student");
+    insertUser.run(studentUserId, "becario@kuidar.app", hashPassword(demoPassword), "Carlos Ruiz", "student");
     const unam = db.prepare("SELECT id FROM universities WHERE slug = 'unam'").get();
     db.prepare("INSERT INTO students (id, user_id, university_id, career) VALUES (?, ?, ?, ?)")
         .run(uuidv4(), studentUserId, unam.id, "Medicina");
     // Adulto mayor demo, ya unido a la familia García
     const elderlyUserId = uuidv4();
-    insertUser.run(elderlyUserId, "adulto@kuidar.app", hashPassword("demo123"), "Don Roberto", "elderly");
+    insertUser.run(elderlyUserId, "adulto@kuidar.app", hashPassword(demoPassword), "Don Roberto", "elderly");
     db.prepare(`
     INSERT INTO elderly_profiles (id, user_id, family_id, first_name, address, neighborhood, lat, lng)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)

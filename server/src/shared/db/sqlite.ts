@@ -242,13 +242,14 @@ if (badgeCount.n === 0) {
 
 const userCount = db.prepare("SELECT COUNT(*) AS n FROM users").get() as { n: number };
 if (userCount.n === 0) {
+  const demoPassword = process.env.DEMO_PASSWORD ?? "demo123";
   const insertUser = db.prepare(
     "INSERT INTO users (id, email, password_hash, name, role) VALUES (?, ?, ?, ?, ?)",
   );
 
   // Familiar demo + familia
   const familyUserId = uuidv4();
-  insertUser.run(familyUserId, "familia@kuidar.app", hashPassword("demo123"), "María García", "family");
+  insertUser.run(familyUserId, "familia@kuidar.app", hashPassword(demoPassword), "María García", "family");
 
   const familyId = uuidv4();
   db.prepare("INSERT INTO families (id, name, family_code) VALUES (?, ?, ?)")
@@ -258,7 +259,7 @@ if (userCount.n === 0) {
 
   // Estudiante demo
   const studentUserId = uuidv4();
-  insertUser.run(studentUserId, "becario@kuidar.app", hashPassword("demo123"), "Carlos Ruiz", "student");
+  insertUser.run(studentUserId, "becario@kuidar.app", hashPassword(demoPassword), "Carlos Ruiz", "student");
 
   const unam = db.prepare("SELECT id FROM universities WHERE slug = 'unam'").get() as { id: string };
   db.prepare("INSERT INTO students (id, user_id, university_id, career) VALUES (?, ?, ?, ?)")
@@ -266,7 +267,7 @@ if (userCount.n === 0) {
 
   // Adulto mayor demo, ya unido a la familia García
   const elderlyUserId = uuidv4();
-  insertUser.run(elderlyUserId, "adulto@kuidar.app", hashPassword("demo123"), "Don Roberto", "elderly");
+  insertUser.run(elderlyUserId, "adulto@kuidar.app", hashPassword(demoPassword), "Don Roberto", "elderly");
 
   db.prepare(`
     INSERT INTO elderly_profiles (id, user_id, family_id, first_name, address, neighborhood, lat, lng)

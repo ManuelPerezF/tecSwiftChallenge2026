@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 private let visitSteps = ["En camino", "Iniciar", "Confirmar", "Terminé"]
 
@@ -119,12 +120,13 @@ struct StudentCommitmentsView: View {
             switch assignment.statusEnum {
             case .approved:
                 updated = try await APIClient.shared.markEnCamino(assignmentId: assignment.id)
-                // Primera ubicación simulada cerca del destino (sin permisos GPS en demo)
-                try? await APIClient.shared.sendLocation(
-                    assignmentId: assignment.id,
-                    latitude: assignment.latitude + 0.008,
-                    longitude: assignment.longitude - 0.005
-                )
+                if let coord = await LocationGrabber.currentCoordinate() {
+                    try? await APIClient.shared.sendLocation(
+                        assignmentId: assignment.id,
+                        latitude: coord.latitude,
+                        longitude: coord.longitude
+                    )
+                }
             case .enCamino:
                 updated = try await APIClient.shared.markIniciada(assignmentId: assignment.id)
             case .esperandoConfirmacion:

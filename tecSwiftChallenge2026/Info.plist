@@ -2,8 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>KUIDAR_API_HOST</key>
+	<string></string>
+	<key>KUIDAR_API_PORT</key>
+	<string>3000</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Usamos tu ubicacion para mostrar solicitudes cercanas a ti en el mapa.</string>
+	<string>Usamos tu ubicación para mostrar solicitudes cercanas y reportar tu llegada durante las visitas.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

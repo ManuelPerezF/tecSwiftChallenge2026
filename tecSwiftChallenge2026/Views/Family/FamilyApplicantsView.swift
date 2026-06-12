@@ -28,6 +28,9 @@ struct FamilyApplicantsView: View {
         }
         .navigationTitle("Postulantes")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: String.self) { studentId in
+            FamilyStudentProfileView(studentId: studentId)
+        }
         .task { await load() }
         .refreshable { await load() }
     }
@@ -170,16 +173,22 @@ private struct ApplicantCard: View {
         AcoCard(padding: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        AvatarView(name: applicant.studentName, tint: .acoStudent, size: 44)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(applicant.studentName)
-                                .font(.headline).foregroundStyle(Color.acoInk)
-                            Text("\(applicant.universityName)\(applicant.career.isEmpty ? "" : " · \(applicant.career)")")
-                                .font(.caption).foregroundStyle(Color.acoInk2)
+                    NavigationLink(value: applicant.studentId) {
+                        HStack(spacing: 12) {
+                            AvatarView(name: applicant.studentName, tint: .acoStudent, size: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(applicant.studentName)
+                                    .font(.headline).foregroundStyle(Color.acoInk)
+                                Text("\(applicant.universityName)\(applicant.career.isEmpty ? "" : " · \(applicant.career)")")
+                                    .font(.caption).foregroundStyle(Color.acoInk2)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color.acoInk3)
                         }
-                        Spacer()
                     }
+                    .buttonStyle(.plain)
 
                     HStack(spacing: 14) {
                         statBadge(symbol: "clock.fill", text: hoursText)

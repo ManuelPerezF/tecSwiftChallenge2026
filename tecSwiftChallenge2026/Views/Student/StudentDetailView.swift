@@ -116,21 +116,6 @@ struct StudentDetailView: View {
                 }
                 .padding(.bottom, 14)
 
-                // Sugerencia IA — integrada, sin card flotante
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.body)
-                        .foregroundStyle(Color(acoHex: "13684D"))
-                        .accessibilityHidden(true)
-                    Text("**Mejor hora para ti:** según tu agenda, el **jueves por la mañana** te queda perfecto entre clases.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color(acoHex: "13684D"))
-                }
-                .padding(13)
-                .background(Color.acoStudentSoft)
-                .clipShape(.rect(cornerRadius: 12))
-                .padding(.bottom, 20)
-
                 // Selector de hora
                 Text("Propón tu hora de llegada")
                     .font(.caption).fontWeight(.bold).textCase(.uppercase)
@@ -215,5 +200,5 @@ struct StudentDetailView: View {
 }
 
 #Preview {
-    NavigationStack { StudentDetailView(request: sampleOpenRequests[0]) }
+    NavigationStack { StudentDetailView(request: PreviewData.openRequest) }
 }

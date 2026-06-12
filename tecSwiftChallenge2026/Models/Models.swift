@@ -331,21 +331,6 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
 
     // MARK: Conversion helpers
 
-    func toFamilyRequestItem() -> FamilyRequestItem {
-        FamilyRequestItem(
-            id: id,
-            activityType: activityTypeEnum,
-            status: statusEnum,
-            title: activityTypeEnum.label,
-            when: scheduledDateFormatted,
-            isUrgent: isUrgent,
-            student: nil,
-            eta: nil,
-            aiSummary: nil,
-            completedRating: nil
-        )
-    }
-
     func toOpenRequest(fromLat: Double? = nil, fromLng: Double? = nil) -> OpenRequest {
         let dist: String
         if let sLat = fromLat, let sLng = fromLng, latitude != 0 && longitude != 0 {

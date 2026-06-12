@@ -35,5 +35,14 @@ export const authController = {
             next(error);
         }
     },
+    updateLocation(req, res, next) {
+        try {
+            const { lat, lng } = req.body;
+            res.json(authService.updateElderlyLocation(req.auth, lat, lng));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
 };
 //# sourceMappingURL=auth.controller.js.map

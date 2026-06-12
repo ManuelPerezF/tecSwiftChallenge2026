@@ -42,7 +42,9 @@ struct StudentMapView: View {
     }
 
     private var overviewCenter: CLLocationCoordinate2D {
-        locationManager.coordinate ?? fallbackCenter
+        if let coord = locationManager.coordinate { return coord }
+        if let first = requests.first { return first.coordinate }
+        return fallbackCenter
     }
 
     var body: some View {
