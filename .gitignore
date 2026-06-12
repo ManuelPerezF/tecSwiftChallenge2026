@@ -1,5 +1,5 @@
 .DS_Store   
 /server/node_modules
-*.db-wal
-*.db-shm
+/server/src/shared/db/kuidar.db-wal
+/server/src/shared/db/kuidar.db-shm
 graphify-out
