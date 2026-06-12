@@ -18,6 +18,7 @@ struct FamilyPublishView: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     @State private var aiSummary: String? = nil
+    @State private var isAutocompleting: Bool = false
     @FocusState private var detailsFocused: Bool
     @State private var familyCoordinate: CLLocationCoordinate2D? = nil
     private let locationGrabber = OneTimeLocationGrabber()
@@ -147,23 +148,32 @@ struct FamilyPublishView: View {
                     .font(.body).foregroundStyle(Color.acoInk)
                     .focused($detailsFocused)
                     .onChange(of: detailsFocused) { _, focused in
-                        if !focused { autocomplete() }
+                        if !focused { autocompleteFromKeywords() }
                     }
 
                     HStack {
                         Button {
-                            detailsFocused = false
-                            autocomplete()
+                            autocompleteWithAI()
                         } label: {
-                            Label("Autocompletar", systemImage: "wand.and.stars")
-                                .font(.caption).fontWeight(.bold)
-                                .foregroundStyle(Color.acoFamily)
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                                .background(Color.acoFamilySoft)
-                                .clipShape(.capsule)
+                            HStack(spacing: 6) {
+                                if isAutocompleting {
+                                    ProgressView()
+                                        .scaleEffect(0.75)
+                                        .tint(Color.acoFamily)
+                                } else {
+                                    Image(systemName: "wand.and.stars")
+                                        .font(.caption)
+                                }
+                                Text(isAutocompleting ? "Procesando…" : "Autocompletar con IA")
+                                    .font(.caption).fontWeight(.bold)
+                            }
+                            .foregroundStyle(Color.acoFamily)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Color.acoFamilySoft)
+                            .clipShape(.capsule)
                         }
                         .buttonStyle(.plain)
-                        .disabled(descriptionText.isEmpty)
+                        .disabled(descriptionText.isEmpty || isAutocompleting)
 
                         if let aiSummary {
                             Text(aiSummary)
@@ -253,13 +263,12 @@ struct FamilyPublishView: View {
         .background(Color.acoBg)
     }
 
-    // MARK: - IA on-device (NaturalLanguage)
+    // MARK: - IA on-device
 
-    /// Parsea la descripción libre y prellena el formulario. El usuario puede corregir.
-    private func autocomplete() {
+    /// Rápido: keyword matching vía NaturalLanguage. Se llama al perder foco.
+    private func autocompleteFromKeywords() {
         guard !descriptionText.isEmpty else { return }
         let intent = IntentParser.parseIntent(from: descriptionText)
-
         var parts: [String] = []
         withAnimation(.easeInOut(duration: 0.18)) {
             if let activity = intent.activityType {
@@ -274,12 +283,65 @@ struct FamilyPublishView: View {
                 scheduledDate = date
                 let df = DateFormatter()
                 df.locale = Locale(identifier: "es_MX")
-                df.dateFormat = "EEE d MMM · HH:mm"
+                df.dateFormat = "EEE d MMM"
                 parts.append(df.string(from: date))
             }
             aiSummary = parts.isEmpty ? nil : "Sugerido: \(parts.joined(separator: " · "))"
         }
         if !parts.isEmpty { KuidarHaptic.light() }
+    }
+
+    /// Completo: IntentParser + Foundation Models para pulir la descripción.
+    /// Se llama solo al presionar el botón "Autocompletar con IA".
+    private func autocompleteWithAI() {
+        guard !descriptionText.isEmpty, !isAutocompleting else { return }
+        detailsFocused = false
+
+        let intent = IntentParser.parseIntent(from: descriptionText)
+        let activityForAI = intent.activityType ?? selectedActivity
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let activity = intent.activityType { selectedActivity = activity }
+            if intent.isUrgent { isUrgent = true }
+            if let date = intent.suggestedDate, date > Date() { scheduledDate = date }
+        }
+
+        guard FoundationModelClient.shared.isAvailable else {
+            var parts: [String] = []
+            if let a = intent.activityType { parts.append(a.label) }
+            if intent.isUrgent { parts.append("urgente") }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                aiSummary = parts.isEmpty
+                    ? "Sin coincidencias — intenta ser más específico."
+                    : "Prellenado: \(parts.joined(separator: " · "))"
+            }
+            if !parts.isEmpty { KuidarHaptic.light() }
+            return
+        }
+
+        isAutocompleting = true
+        aiSummary = nil
+        let textSnapshot = descriptionText
+
+        Task {
+            do {
+                let polished = try await FoundationModelClient.shared.suggestDescription(
+                    activityType: activityForAI,
+                    notes: textSnapshot
+                )
+                await MainActor.run {
+                    guard !polished.isEmpty else { isAutocompleting = false; return }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        descriptionText = polished
+                        aiSummary = "Mejorado con IA · \(activityForAI.label)"
+                    }
+                    isAutocompleting = false
+                    KuidarHaptic.success()
+                }
+            } catch {
+                await MainActor.run { isAutocompleting = false }
+            }
+        }
     }
 
     // MARK: - API call

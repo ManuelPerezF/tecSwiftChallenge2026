@@ -338,6 +338,7 @@ struct FamilyLiveVisitView: View {
     // 3.7: propuesta de cambio de horario pendiente
     @State private var pendingProposal: APIClient.PendingProposal?
     @State private var isConfirmingEnd = false
+    @State private var showChat = false
 
     init(assignment: APIAssignment) {
         self.assignment = assignment
@@ -384,6 +385,25 @@ struct FamilyLiveVisitView: View {
         }
         .navigationTitle("Visita")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showChat = true
+                } label: {
+                    Image(systemName: "bubble.left.fill")
+                        .foregroundStyle(Color.acoFamily)
+                }
+                .accessibilityLabel("Enviar mensaje a \(current.studentName)")
+            }
+        }
+        .navigationDestination(isPresented: $showChat) {
+            ChatThreadView(
+                title: current.studentName,
+                otherId: current.studentId,
+                tint: .acoFamily,
+                isFamily: true
+            )
+        }
         .onAppear { startLive() }
         .onDisappear { ws.disconnect() }
         .task { await loadProposal() }
