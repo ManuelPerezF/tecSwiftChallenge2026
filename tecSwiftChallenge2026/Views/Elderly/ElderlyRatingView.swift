@@ -1,11 +1,19 @@
 import SwiftUI
 
 struct ElderlyRatingView: View {
+    let assignmentId: String
+    let studentName: String
+
     @State private var selectedStars: Int = 0
     @State private var selectedTags: Set<String> = []
     @State private var isSent: Bool = false
+    @State private var isSubmitting: Bool = false
+    @State private var submitError: String?
 
-    private let studentName  = "Carlos"
+    private var firstName: String {
+        studentName.components(separatedBy: " ").first ?? studentName
+    }
+
     private let positiveTags = ["Muy amable", "Puntual", "Volvería a pedirlo"]
     private let ratingLabels = ["", "Mal", "Regular", "Bien", "Muy bien", "¡Excelente!"]
 
@@ -28,8 +36,9 @@ struct ElderlyRatingView: View {
     private var thankYouView: some View {
         VStack(spacing: 0) {
             Spacer()
-            Text("💛")
-                .font(.system(size: 80))
+            Image(systemName: "heart.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(Color.acoStar)
                 .accessibilityHidden(true)
             Text("¡Gracias!")
                 .font(.system(size: 40, weight: .heavy))
@@ -56,17 +65,15 @@ struct ElderlyRatingView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 24)
 
-                    // Avatar del estudiante
-                    AvatarView(name: "Carlos Méndez", tint: .acoElderly, size: 104)
+                    AvatarView(name: studentName, tint: .acoElderly, size: 104)
 
-                    Text("¿Cómo te trató\n\(studentName)?")
+                    Text("¿Cómo te trató\n\(firstName)?")
                         .font(.system(size: 34, weight: .heavy))
                         .foregroundStyle(Color.acoInk)
                         .multilineTextAlignment(.center)
                         .lineSpacing(2)
                         .padding(.top, 20)
 
-                    // Estrellas grandes
                     HStack(spacing: 8) {
                         ForEach(1 ... 5, id: \.self) { i in
                             Button {
@@ -95,7 +102,6 @@ struct ElderlyRatingView: View {
                         .frame(minHeight: 26)
                         .animation(.easeInOut(duration: 0.15), value: selectedStars)
 
-                    // Tags — botones full-width, más grandes
                     if selectedStars >= 4 {
                         VStack(spacing: 10) {
                             Text("¿Qué te gustó? (opcional)")
@@ -116,8 +122,7 @@ struct ElderlyRatingView: View {
                                                 .font(.body.weight(.bold))
                                         }
                                         Text(tag)
-                                            .font(.title3)
-                                            .fontWeight(.semibold)
+                                            .font(.title3).fontWeight(.semibold)
                                     }
                                     .foregroundStyle(isOn ? Color.acoElderly : Color.acoInk)
                                     .frame(maxWidth: .infinity)
@@ -140,40 +145,47 @@ struct ElderlyRatingView: View {
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
 
+                    if let submitError {
+                        Label(submitError, systemImage: "exclamationmark.triangle.fill")
+                            .font(.body)
+                            .foregroundStyle(Color.acoUrgent)
+                            .padding(.top, 16)
+                    }
+
                     Spacer().frame(height: 28)
                 }
                 .padding(.horizontal, 24)
             }
             .scrollIndicators(.hidden)
 
-            // Botón enviar — grande y fijo abajo
             VStack(spacing: 12) {
-                Rectangle()
-                    .fill(Color.acoHair)
-                    .frame(height: 1)
+                Rectangle().fill(Color.acoHair).frame(height: 1)
                 Button {
-                    guard selectedStars > 0 else { return }
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        isSent = true
-                    }
+                    guard selectedStars > 0, !isSubmitting else { return }
+                    Task { await submit() }
                 } label: {
                     HStack(spacing: 10) {
-                        if selectedStars > 0 {
+                        if isSubmitting {
+                            ProgressView().tint(.white)
+                        } else if selectedStars > 0 {
                             Image(systemName: "paperplane.fill")
                                 .font(.system(size: 20, weight: .semibold))
+                            Text("Enviar")
+                                .font(.system(size: 26, weight: .bold))
+                        } else {
+                            Text("Enviar")
+                                .font(.system(size: 26, weight: .bold))
                         }
-                        Text("Enviar")
-                            .font(.system(size: 26, weight: .bold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 22)
-                    .background(selectedStars > 0 ? Color.acoElderly : Color(acoHex: "E0D6C9"))
+                    .background(selectedStars > 0 && !isSubmitting ? Color.acoElderly : Color(acoHex: "E0D6C9"))
                     .clipShape(.rect(cornerRadius: 20))
                     .shadow(color: selectedStars > 0 ? Color.acoElderly.opacity(0.38) : .clear, radius: 12, x: 0, y: 6)
                 }
                 .buttonStyle(.plain)
-                .disabled(selectedStars == 0)
+                .disabled(selectedStars == 0 || isSubmitting)
                 .animation(.easeInOut(duration: 0.15), value: selectedStars)
                 .sensoryFeedback(.success, trigger: isSent)
 
@@ -186,10 +198,28 @@ struct ElderlyRatingView: View {
             .background(Color.acoBg)
         }
     }
+
+    // MARK: - API
+
+    private func submit() async {
+        isSubmitting = true
+        submitError = nil
+        do {
+            _ = try await APIClient.shared.submitRating(
+                assignmentId: assignmentId,
+                stars: selectedStars,
+                tags: Array(selectedTags)
+            )
+            withAnimation(.easeInOut(duration: 0.22)) { isSent = true }
+        } catch {
+            submitError = error.localizedDescription
+        }
+        isSubmitting = false
+    }
 }
 
 #Preview {
     NavigationStack {
-        ElderlyRatingView()
+        ElderlyRatingView(assignmentId: "preview", studentName: "Carlos Méndez")
     }
 }

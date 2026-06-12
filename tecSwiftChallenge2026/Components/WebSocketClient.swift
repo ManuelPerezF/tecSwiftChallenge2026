@@ -49,7 +49,7 @@ final class WebSocketClient {
         guard task == nil, !token.isEmpty else { return }
         shouldReconnect = true
 
-        var components = URLComponents(string: "ws://localhost:3000/ws")!
+        var components = URLComponents(url: APIConfig.webSocketBaseURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "token", value: token)]
         guard let url = components.url else { return }
 

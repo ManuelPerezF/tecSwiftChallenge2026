@@ -19,6 +19,8 @@ export const registerBodySchema = z.object({
   // elderly
   address: z.string().optional(),
   neighborhood: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 
 export const logoutBodySchema = z.object({

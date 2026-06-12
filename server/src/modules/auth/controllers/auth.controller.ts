@@ -37,4 +37,13 @@ export const authController = {
       next(error);
     }
   },
+
+  updateLocation(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const { lat, lng } = req.body as { lat: number; lng: number };
+      res.json(authService.updateElderlyLocation(req.auth!, lat, lng));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

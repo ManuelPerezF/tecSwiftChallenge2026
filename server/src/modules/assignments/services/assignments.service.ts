@@ -39,7 +39,9 @@ interface AssignmentRow {
 const SELECT_FULL = `
   SELECT a.*, u.name AS student_name,
          r.activity_type, r.details, r.scheduled_date, r.is_urgent,
-         r.latitude, r.longitude, r.family_id, r.elderly_profile_id,
+         CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
+         CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude,
+         r.family_id, r.elderly_profile_id,
          e.first_name AS elderly_name, e.neighborhood, e.address
   FROM   assignments a
   JOIN   activity_requests r ON a.request_id = r.id
@@ -75,8 +77,8 @@ function toView(row: AssignmentRow): AssignmentView {
     latitude: row.latitude,
     longitude: row.longitude,
     elderlyName: row.elderly_name ?? "Tu familiar",
-    neighborhood: row.neighborhood ?? "CDMX",
-    address: row.address ?? "CDMX",
+    neighborhood: row.neighborhood ?? "",
+    address: row.address ?? "",
     familyId: row.family_id,
   };
 }

@@ -188,6 +188,39 @@ struct APIAssignment: Codable, Identifiable, Hashable, Sendable {
     var activityTypeEnum: ActivityType {
         ActivityType(rawValue: activityType) ?? .compania
     }
+
+    private static let isoFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let isoFormatterNoFrac: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    var scheduledDateParsed: Date {
+        APIAssignment.isoFormatter.date(from: scheduledDate)
+            ?? APIAssignment.isoFormatterNoFrac.date(from: scheduledDate)
+            ?? Date()
+    }
+
+    var scheduledDateFormatted: String {
+        let date = scheduledDateParsed
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        let cal = Calendar.current
+        if cal.isDateInToday(date) {
+            df.dateFormat = "'Hoy · 'HH:mm"
+        } else if cal.isDateInTomorrow(date) {
+            df.dateFormat = "'Mañana · 'HH:mm"
+        } else {
+            df.dateFormat = "EEE d MMM · HH:mm"
+        }
+        return df.string(from: date)
+    }
 }
 
 // MARK: - Reputación
@@ -313,8 +346,19 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
         )
     }
 
-    func toOpenRequest() -> OpenRequest {
-        OpenRequest(
+    func toOpenRequest(fromLat: Double? = nil, fromLng: Double? = nil) -> OpenRequest {
+        let dist: String
+        if let sLat = fromLat, let sLng = fromLng, latitude != 0 && longitude != 0 {
+            let dLat = (sLat - latitude) * 111_320
+            let dLng = (sLng - longitude) * 111_320 * cos(latitude * .pi / 180)
+            let meters = (dLat * dLat + dLng * dLng).squareRoot()
+            dist = meters < 1_000
+                ? String(format: "%.0f m", meters)
+                : String(format: "%.1f km", meters / 1_000)
+        } else {
+            dist = ""
+        }
+        return OpenRequest(
             id: id,
             activityType: activityTypeEnum,
             neighborhood: neighborhood,
@@ -324,7 +368,7 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
             isUrgent: isUrgent,
             latitude: latitude,
             longitude: longitude,
-            distance: "~1 km",
+            distance: dist,
             matchScore: matchScore,
             elderlyName: elderlyName,
             title: activityTypeEnum.label,

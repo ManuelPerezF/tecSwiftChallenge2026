@@ -192,6 +192,9 @@ private struct AssignmentCard: View {
                             Text(assignment.elderlyName)
                                 .font(.subheadline)
                                 .foregroundStyle(Color.acoInk2)
+                            Label(assignment.scheduledDateFormatted, systemImage: "calendar")
+                                .font(.caption)
+                                .foregroundStyle(Color.acoInk3)
                         }
                         Spacer()
                         if isCancelled {
@@ -199,22 +202,28 @@ private struct AssignmentCard: View {
                         }
                     }
 
-                    HStack(spacing: 8) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.acoStudent)
-                            .accessibilityHidden(true)
-                        Text("\(assignment.address) · \(assignment.neighborhood)")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.acoInk)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                    let addressText: String = {
+                        let parts = [assignment.address, assignment.neighborhood].filter { !$0.isEmpty }
+                        return parts.joined(separator: " · ")
+                    }()
+                    if !addressText.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.acoStudent)
+                                .accessibilityHidden(true)
+                            Text(addressText)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.acoInk)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(11)
+                        .background(Color.acoStudentSoft)
+                        .clipShape(.rect(cornerRadius: 10))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(11)
-                    .background(Color.acoStudentSoft)
-                    .clipShape(.rect(cornerRadius: 10))
 
                     if !isCancelled {
                         StepProgressBar(steps: visitSteps, currentStep: currentStep)

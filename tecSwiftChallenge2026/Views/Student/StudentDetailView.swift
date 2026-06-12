@@ -2,12 +2,21 @@ import SwiftUI
 
 struct StudentDetailView: View {
     let request: OpenRequest
-    @State private var selectedTime: String = "10:30"
+    @State private var arrivalTime: Date = {
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 10; comps.minute = 0
+        return Calendar.current.date(from: comps) ?? Date()
+    }()
     @State private var isClaimed: Bool = false
     @State private var isLoading: Bool = false
     @State private var errorMessage: String?
 
-    private let timeSlots = ["9:00", "9:30", "10:00", "10:30", "11:00", "11:30"]
+    private var arrivalTimeFormatted: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "es_MX")
+        df.dateFormat = "HH:mm"
+        return df.string(from: arrivalTime)
+    }
 
     var body: some View {
         ZStack {
@@ -127,32 +136,19 @@ struct StudentDetailView: View {
                     .font(.caption).fontWeight(.bold).textCase(.uppercase)
                     .tracking(0.3).foregroundStyle(Color.acoStudent).padding(.bottom, 10)
 
-                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 3), spacing: 8) {
-                    ForEach(timeSlots, id: \.self) { slot in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.12)) { selectedTime = slot }
-                        } label: {
-                            Text(slot)
-                                .font(.body).fontWeight(.semibold)
-                                .foregroundStyle(selectedTime == slot ? .white : Color.acoInk)
-                                .frame(maxWidth: .infinity).padding(.vertical, 11)
-                                .background(selectedTime == slot ? Color.acoStudent : Color(acoHex: "FDFAF6"))
-                                .clipShape(.rect(cornerRadius: 11))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 11)
-                                        .strokeBorder(
-                                            selectedTime == slot ? Color.clear : Color(acoHex: "3C3228").opacity(0.08),
-                                            lineWidth: 1
-                                        )
-                                }
-                                .animation(.easeInOut(duration: 0.12), value: selectedTime)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(slot)
-                        .accessibilityAddTraits(selectedTime == slot ? .isSelected : [])
+                DatePicker("Hora de llegada", selection: $arrivalTime, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.compact)
+                    .tint(.acoStudent)
+                    .labelsHidden()
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(acoHex: "FDFAF6"))
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(Color.acoStudent.opacity(0.25), lineWidth: 1.5)
                     }
-                }
-                .padding(.bottom, 22)
+                    .padding(.bottom, 22)
 
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -167,7 +163,7 @@ struct StudentDetailView: View {
                     disabled: isLoading
                 ) { Task { await apply() } }
 
-                Text("Llegada propuesta: \(request.timeWindow.shortLabel.lowercased()), \(selectedTime)")
+                Text("Llegada propuesta: \(request.timeWindow.shortLabel.lowercased()), \(arrivalTimeFormatted)")
                     .font(.caption).foregroundStyle(Color.acoInk3)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 10).padding(.bottom, 40)
@@ -197,7 +193,7 @@ struct StudentDetailView: View {
         do {
             _ = try await APIClient.shared.applyToRequest(
                 requestId: request.id,
-                message: "Puedo llegar a las \(selectedTime)."
+                message: "Puedo llegar a las \(arrivalTimeFormatted)."
             )
             await MainActor.run {
                 isLoading = false

@@ -1,2 +1,5 @@
 .DS_Store   
 /server/node_modules
+*.db-wal
+*.db-shm
+graphify-out

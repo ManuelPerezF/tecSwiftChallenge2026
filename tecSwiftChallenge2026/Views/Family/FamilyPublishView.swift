@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import CoreLocation
 
 struct FamilyPublishView: View {
     @AppStorage("aco_userName") private var userName: String = ""
@@ -15,6 +16,8 @@ struct FamilyPublishView: View {
     @State private var isPublished: Bool = false
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var familyCoordinate: CLLocationCoordinate2D? = nil
+    private let locationGrabber = OneTimeLocationGrabber()
 
     var body: some View {
         ZStack {
@@ -33,6 +36,7 @@ struct FamilyPublishView: View {
                 familyElderly = info?.elderly ?? []
                 if selectedElderlyId == nil { selectedElderlyId = familyElderly.first?.id }
             }
+            familyCoordinate = await locationGrabber.grab()
         }
     }
 
@@ -215,7 +219,9 @@ struct FamilyPublishView: View {
                     ? "Ayuda con \(selectedActivity.label.lowercased())."
                     : descriptionText,
                 scheduledDate: scheduledDate,
-                isUrgent: isUrgent
+                isUrgent: isUrgent,
+                latitude: familyCoordinate?.latitude,
+                longitude: familyCoordinate?.longitude
             )
             await MainActor.run {
                 isLoading = false
@@ -310,6 +316,54 @@ private struct UrgencyToggleRow: View {
                 .strokeBorder(isUrgent ? Color.acoUrgent : Color(acoHex: "3C3228").opacity(0.08),
                               lineWidth: isUrgent ? 1.5 : 1)
         }
+    }
+}
+
+// MARK: - One-shot location helper
+
+private final class OneTimeLocationGrabber: NSObject, CLLocationManagerDelegate, @unchecked Sendable {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func grab() async -> CLLocationCoordinate2D? {
+        return await withCheckedContinuation { cont in
+            continuation = cont
+            switch manager.authorizationStatus {
+            case .notDetermined:
+                manager.requestWhenInUseAuthorization()
+            case .authorizedAlways, .authorizedWhenInUse:
+                manager.requestLocation()
+            default:
+                cont.resume(returning: nil)
+                continuation = nil
+            }
+        }
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedWhenInUse ||
+           manager.authorizationStatus == .authorizedAlways {
+            manager.requestLocation()
+        } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
+            continuation?.resume(returning: nil)
+            continuation = nil
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        continuation?.resume(returning: locations.last?.coordinate)
+        continuation = nil
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        continuation?.resume(returning: nil)
+        continuation = nil
     }
 }
 

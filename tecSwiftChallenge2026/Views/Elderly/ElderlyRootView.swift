@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import CoreLocation
 
 enum ElderlyTab: Hashable {
     case agenda, family
@@ -7,6 +8,7 @@ enum ElderlyTab: Hashable {
 struct ElderlyRootView: View {
     let onLogout: () -> Void
     @State private var selectedTab: ElderlyTab = .agenda
+    @State private var locationManager = ElderlyLocationUpdater()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -15,6 +17,14 @@ struct ElderlyRootView: View {
                     ElderlyAgendaView(onGoToFamily: { selectedTab = .family })
                         .navigationDestination(for: APIAssignment.self) { assignment in
                             ElderlyLiveMapView(assignment: assignment)
+                        }
+                        .navigationDestination(for: ElderlyDestination.self) { dest in
+                            switch dest {
+                            case .visitDetail(let assignment):
+                                ElderlyVisitView(assignment: assignment)
+                            case .rating(let assignmentId, let studentName):
+                                ElderlyRatingView(assignmentId: assignmentId, studentName: studentName)
+                            }
                         }
                         .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }
@@ -27,6 +37,7 @@ struct ElderlyRootView: View {
             }
         }
         .tint(.acoElderly)
+        .task { locationManager.requestOnce() }
     }
 
     private var logoutButton: some View {
@@ -34,6 +45,51 @@ struct ElderlyRootView: View {
             .font(.caption)
             .foregroundStyle(Color.acoInk3)
     }
+}
+
+@MainActor
+private final class ElderlyLocationUpdater: NSObject, CLLocationManagerDelegate, Sendable {
+    private let manager = CLLocationManager()
+    private var didSend = false
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func requestOnce() {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            manager.requestLocation()
+        default:
+            break
+        }
+    }
+
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        DispatchQueue.main.async {
+            if manager.authorizationStatus == .authorizedWhenInUse ||
+               manager.authorizationStatus == .authorizedAlways {
+                manager.requestLocation()
+            }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let loc = locations.last else { return }
+        let lat = loc.coordinate.latitude
+        let lng = loc.coordinate.longitude
+        DispatchQueue.main.async {
+            guard !self.didSend else { return }
+            self.didSend = true
+            Task { await APIClient.shared.updateElderlyLocation(latitude: lat, longitude: lng) }
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
 
 #Preview {

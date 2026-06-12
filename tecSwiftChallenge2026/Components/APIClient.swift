@@ -7,7 +7,7 @@ final class APIClient {
 
     static let shared = APIClient()
 
-    private let baseURL = URL(string: "http://localhost:3000/api")!
+    private var baseURL: URL { APIConfig.apiBaseURL }
 
     /// Token de sesión; se setea al hacer login/registro y se limpia al salir.
     var authToken: String {
@@ -59,6 +59,13 @@ final class APIClient {
         return response
     }
 
+    func updateElderlyLocation(latitude: Double, longitude: Double) async {
+        _ = try? await post(
+            path: "auth/location",
+            body: ["lat": latitude, "lng": longitude]
+        ) as [String: Bool]
+    }
+
     func logout(token: String) async {
         var req = request(path: "auth/logout", method: "POST")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["token": token])
@@ -99,7 +106,9 @@ final class APIClient {
         activityType: ActivityType,
         details: String,
         scheduledDate: Date,
-        isUrgent: Bool
+        isUrgent: Bool,
+        latitude: Double? = nil,
+        longitude: Double? = nil
     ) async throws -> APIRequest {
         var body: [String: Any] = [
             "activityType":  activityType.rawValue,
@@ -108,6 +117,8 @@ final class APIClient {
             "isUrgent":      isUrgent,
         ]
         if let elderlyProfileId { body["elderlyProfileId"] = elderlyProfileId }
+        if let lat = latitude  { body["lat"] = lat }
+        if let lng = longitude { body["lng"] = lng }
         return try await post(path: "requests", body: body)
     }
 

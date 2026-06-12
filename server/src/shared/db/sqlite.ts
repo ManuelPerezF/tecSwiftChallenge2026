@@ -14,7 +14,7 @@ db.pragma("foreign_keys = ON");
 
 // ── Schema versioning ─────────────────────────────────────────────
 // v2 introduce families/applications/assignments; si la DB es vieja se recrea.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const currentVersion = (db.pragma("user_version", { simple: true }) as number) ?? 0;
 
 if (currentVersion < SCHEMA_VERSION) {
@@ -92,10 +92,10 @@ db.exec(`
     user_id      TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     family_id    TEXT REFERENCES families(id) ON DELETE SET NULL,
     first_name   TEXT NOT NULL,
-    address      TEXT NOT NULL DEFAULT 'CDMX',
-    neighborhood TEXT NOT NULL DEFAULT 'CDMX',
-    lat          REAL NOT NULL DEFAULT 19.3826,
-    lng          REAL NOT NULL DEFAULT -99.1677
+    address      TEXT NOT NULL DEFAULT '',
+    neighborhood TEXT NOT NULL DEFAULT '',
+    lat          REAL NOT NULL DEFAULT 0,
+    lng          REAL NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS activity_requests (

@@ -10,3 +10,4 @@ authRouter.post("/register", validateBody(registerBodySchema), authController.re
 authRouter.post("/login", validateBody(loginBodySchema), authController.login);
 authRouter.get("/me", requireAuth, authController.me);
 authRouter.post("/logout", validateBody(logoutBodySchema), authController.logout);
+authRouter.patch("/location", requireAuth, authController.updateLocation);

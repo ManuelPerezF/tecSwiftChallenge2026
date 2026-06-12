@@ -31,6 +31,7 @@ struct StudentMapView: View {
     @State private var selectedId: String = ""
     @State private var filterActivity: ActivityType? = nil
     @State private var didCenterOnCurrentLocation = false
+    @State private var mapError: String?
     @State private var position: MapCameraPosition = .region(
         MKCoordinateRegion(center: fallbackCenter, span: overviewSpan)
     )
@@ -47,6 +48,20 @@ struct StudentMapView: View {
     var body: some View {
         ZStack(alignment: .top) {
             mapLayer
+
+            if let mapError {
+                VStack {
+                    Spacer()
+                    Label(mapError, systemImage: "wifi.slash")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.acoInk2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 20).padding(.vertical, 14)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 260)
+                }
+            }
 
             filterBar
                 .padding(.horizontal, 14)
@@ -115,21 +130,18 @@ struct StudentMapView: View {
     // MARK: - Load from API
 
     private func loadRequests() async {
+        mapError = nil
         do {
             let apiRequests = try await APIClient.shared.fetchOpenRequests()
-            let openRequests = apiRequests.map { $0.toOpenRequest() }
-            await MainActor.run {
-                requests = openRequests
-                if selectedId.isEmpty, let first = openRequests.first {
-                    selectedId = first.id
-                }
+            let lat = locationManager.coordinate?.latitude
+            let lng = locationManager.coordinate?.longitude
+            let openRequests = apiRequests.map { $0.toOpenRequest(fromLat: lat, fromLng: lng) }
+            requests = openRequests
+            if selectedId.isEmpty, let first = openRequests.first {
+                selectedId = first.id
             }
         } catch {
-            // Show static sample data as fallback so map isn't empty
-            await MainActor.run {
-                requests = sampleOpenRequests
-                if selectedId.isEmpty { selectedId = sampleOpenRequests.first?.id ?? "" }
-            }
+            mapError = error.localizedDescription
         }
     }
 

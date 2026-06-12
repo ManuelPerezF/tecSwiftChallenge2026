@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import os from "node:os";
 import { applicationsRouter } from "./modules/applications/routes/applications.routes.js";
 import { assignmentsRouter } from "./modules/assignments/routes/assignments.routes.js";
 import { authRouter } from "./modules/auth/routes/auth.routes.js";
@@ -31,8 +32,24 @@ app.get("/health", (_req, res) => {
 
 app.use(errorMiddleware);
 
-const server = app.listen(PORT, () => {
-  console.log(`\n  🫀  Kuidar server  →  http://localhost:${PORT}\n      WebSocket      →  ws://localhost:${PORT}/ws\n`);
+function lanIPv4(): string | null {
+  try {
+    for (const iface of Object.values(os.networkInterfaces())) {
+      for (const addr of iface ?? []) {
+        if (addr.family === "IPv4" && !addr.internal) return addr.address;
+      }
+    }
+  } catch {
+    // sandbox / permisos restringidos — omitir log de IP LAN
+  }
+  return null;
+}
+
+const server = app.listen(PORT, "0.0.0.0", () => {
+  const lan = lanIPv4();
+  console.log(`\n  🫀  Kuidar server  →  http://localhost:${PORT}`);
+  if (lan) console.log(`      Red local      →  http://${lan}:${PORT}  (usa esta IP en el iPhone)`);
+  console.log(`      WebSocket      →  ws://localhost:${PORT}/ws\n`);
 });
 
 attachWebSocketServer(server);

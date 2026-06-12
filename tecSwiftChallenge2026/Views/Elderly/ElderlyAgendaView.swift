@@ -13,6 +13,7 @@ struct ElderlyAgendaView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var confirmingId: String?
+    // confirmingId kept for confirmStartBanner only
 
     var body: some View {
         ZStack {
@@ -103,17 +104,14 @@ struct ElderlyAgendaView: View {
 
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption).foregroundStyle(Color.acoUrgent)
+                        .font(.body).foregroundStyle(Color.acoUrgent)
                 }
 
                 ForEach(upcoming) { visit in
-                    ElderlyVisitCard(
-                        visit: visit,
-                        isConfirming: confirmingId == visit.id,
-                        onConfirmStart: visit.statusEnum == .esperandoConfirmacion
-                            ? { Task { await confirmStart(visit) } }
-                            : nil
-                    )
+                    NavigationLink(value: ElderlyDestination.visitDetail(visit)) {
+                        ElderlyVisitCard(visit: visit)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 20)

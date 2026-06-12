@@ -10,7 +10,10 @@ import {
 import type { CreateRequestBody } from "../models/requests.model.js";
 
 const SELECT_WITH_ELDERLY = `
-  SELECT r.*, e.first_name AS elderly_name, e.neighborhood
+  SELECT r.*,
+         e.first_name AS elderly_name, e.neighborhood,
+         CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
+         CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude
   FROM   activity_requests r
   LEFT JOIN elderly_profiles e ON r.elderly_profile_id = e.id
 `;
@@ -63,9 +66,11 @@ export const requestsService = {
         .get(auth.familyId) as ElderlyRow | undefined;
     }
 
-    // Coordenadas: domicilio del adulto, con jitter pequeño si no hay perfil
-    const latitude = elderly?.lat ?? 19.3826 + (Math.random() * 0.018 - 0.006);
-    const longitude = elderly?.lng ?? -99.1677 + (Math.random() * 0.02 - 0.01);
+    // Coordenadas: preferir GPS enviado por la familia, luego perfil del adulto mayor
+    const elderlyLat = elderly?.lat && elderly.lat !== 0 ? elderly.lat : null;
+    const elderlyLng = elderly?.lng && elderly.lng !== 0 ? elderly.lng : null;
+    const latitude = data.lat ?? elderlyLat ?? 0;
+    const longitude = data.lng ?? elderlyLng ?? 0;
 
     const requestId = uuidv4();
     db.prepare(`
