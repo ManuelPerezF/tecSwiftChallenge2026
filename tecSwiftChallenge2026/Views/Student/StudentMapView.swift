@@ -291,7 +291,18 @@ private struct MapBottomSheet: View {
     @State private var listAppeared: Bool = false
 
     private var sorted: [OpenRequest] {
-        filteredRequests.sorted { $0.matchScore > $1.matchScore }
+        filteredRequests.sorted { distanceMeters(for: $0) < distanceMeters(for: $1) }
+    }
+
+    private func distanceMeters(for request: OpenRequest) -> Double {
+        let d = request.distance
+        if d.hasSuffix(" km"), let km = Double(d.dropLast(3).trimmingCharacters(in: .whitespaces)) {
+            return km * 1_000
+        }
+        if d.hasSuffix(" m"), let m = Double(d.dropLast(2).trimmingCharacters(in: .whitespaces)) {
+            return m
+        }
+        return .infinity
     }
     private var selected: OpenRequest? {
         filteredRequests.first { $0.id == selectedId }
@@ -313,7 +324,7 @@ private struct MapBottomSheet: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            Text("Ordenado por distancia y afinidad")
+            Text("Ordenado por distancia")
                 .font(.footnote)
                 .foregroundStyle(Color.acoInk3)
                 .padding(.horizontal, 18)
@@ -552,19 +563,13 @@ private struct RankedRow: View {
 
             Spacer(minLength: 4)
 
-            // Right side: hours + match
-            VStack(alignment: .trailing, spacing: 5) {
-                Text("+\(hoursFormatted(request.hours)) h")
-                    .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoStudent)
-                Text("\(request.matchScore)% afinidad")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.acoStudent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.acoStudentSoft)
-                    .clipShape(Capsule())
-                    .accessibilityLabel("\(request.matchScore) por ciento de afinidad")
-            }
+            Text("+\(hoursFormatted(request.hours)) h")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.acoStudent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.acoStudentSoft)
+                .clipShape(Capsule())
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .frame(minHeight: 66)
@@ -583,7 +588,7 @@ private struct RankedRow: View {
         }
         .shadow(color: isSelected ? Color.acoStudent.opacity(0.06) : .clear, radius: 6, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.scheduledDateFormatted), \(hoursFormatted(request.hours)) horas, \(request.matchScore) por ciento de compatibilidad\(request.isUrgent ? ", urgente" : "")")
+        .accessibilityLabel("\(request.title) en \(request.neighborhood)\(request.distance.isEmpty ? "" : ", a \(request.distance)"), \(request.scheduledDateFormatted), \(hoursFormatted(request.hours)) horas\(request.isUrgent ? ", urgente" : "")")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
