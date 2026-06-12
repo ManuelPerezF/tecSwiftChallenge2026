@@ -9,7 +9,7 @@ export const registerBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(1),
-  role: z.enum(["family", "student", "elderly"]),
+  role: z.enum(["family", "student", "elderly", "organizer"]),
   // student
   universityId: z.string().optional(),
   career: z.string().optional(),
@@ -31,7 +31,7 @@ export type LoginBody = z.infer<typeof loginBodySchema>;
 export type RegisterBody = z.infer<typeof registerBodySchema>;
 export type LogoutBody = z.infer<typeof logoutBodySchema>;
 
-export type UserRole = "family" | "student" | "elderly";
+export type UserRole = "family" | "student" | "elderly" | "organizer";
 
 export interface PublicUser {
   id: string;

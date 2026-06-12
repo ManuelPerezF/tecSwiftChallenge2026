@@ -6,6 +6,13 @@ export const applyBodySchema = z.object({
 
 export type ApplyBody = z.infer<typeof applyBodySchema>;
 
+export type ApplicationStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "waiting_list"
+  | "cancelled_by_helper";
+
 export interface ApplicationView {
   id: string;
   requestId: string;
@@ -16,6 +23,7 @@ export interface ApplicationView {
   totalHours: number;
   averageRating: number;
   message: string;
-  status: "pending" | "approved" | "rejected";
+  status: ApplicationStatus;
   createdAt: string;
+  tags: string[];
 }

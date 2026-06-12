@@ -7,5 +7,5 @@ export const applicationsRouter = Router();
 applicationsRouter.use(requireAuth);
 
 applicationsRouter.get("/mine", requireRole("student"), applicationsController.listMine);
-applicationsRouter.post("/:id/approve", requireRole("family"), applicationsController.approve);
-applicationsRouter.post("/:id/reject", requireRole("family"), applicationsController.reject);
+applicationsRouter.post("/:id/approve", requireRole("family", "organizer"), applicationsController.approve);
+applicationsRouter.post("/:id/reject", requireRole("family", "organizer"), applicationsController.reject);

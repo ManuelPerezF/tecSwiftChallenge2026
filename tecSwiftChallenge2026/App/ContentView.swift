@@ -31,9 +31,10 @@ struct ContentView: View {
     @ViewBuilder
     private func roleRoot(for role: AppRole) -> some View {
         switch role {
-        case .family:  FamilyRootView(onLogout: logout)
-        case .student: StudentRootView(onLogout: logout)
-        case .elderly: ElderlyRootView(onLogout: logout)
+        case .family:    FamilyRootView(onLogout: logout)
+        case .student:   StudentRootView(onLogout: logout)
+        case .elderly:   ElderlyRootView(onLogout: logout)
+        case .organizer: OrganizerRootView(onLogout: logout)
         }
     }
 

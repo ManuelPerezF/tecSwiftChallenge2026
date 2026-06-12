@@ -131,6 +131,27 @@ export function broadcastAssignmentStatus(assignmentId: string): void {
   }
 }
 
+/** Notifica que un request se reabrió (cancelación) a la familia y a sus postulantes. */
+export function broadcastRequestReopened(requestId: string): void {
+  const row = db
+    .prepare("SELECT id, family_id FROM activity_requests WHERE id = ?")
+    .get(requestId) as { id: string; family_id: string } | undefined;
+  if (!row) return;
+
+  const applicants = new Set(
+    (db.prepare("SELECT student_id FROM applications WHERE request_id = ?").all(requestId) as Array<{ student_id: string }>)
+      .map((r) => r.student_id),
+  );
+
+  const payload = { type: "request:reopened", requestId: row.id };
+  for (const [ws, state] of clients) {
+    const involved =
+      state.auth.familyId === row.family_id ||
+      (state.auth.studentId != null && applicants.has(state.auth.studentId));
+    if (involved) send(ws, payload);
+  }
+}
+
 function handleLocationUpdate(ws: WebSocket, state: ClientState, msg: IncomingMessage): void {
   const { assignmentId, lat, lng } = msg;
   if (!assignmentId || typeof lat !== "number" || typeof lng !== "number") {

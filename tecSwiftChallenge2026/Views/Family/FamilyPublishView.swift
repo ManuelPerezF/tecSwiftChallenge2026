@@ -17,6 +17,8 @@ struct FamilyPublishView: View {
     @State private var isPublished: Bool = false
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var aiSummary: String? = nil
+    @FocusState private var detailsFocused: Bool
     @State private var familyCoordinate: CLLocationCoordinate2D? = nil
     private let locationGrabber = OneTimeLocationGrabber()
 
@@ -132,6 +134,55 @@ struct FamilyPublishView: View {
                     .padding(.horizontal, 20)
                 }
 
+                // Descripción libre + IA on-device (NaturalLanguage)
+                fieldLabel("Describe qué necesitas (opcional)")
+                    .padding(.horizontal, 20).padding(.top, 22)
+                VStack(alignment: .leading, spacing: 10) {
+                    TextField(
+                        "Ej. “Necesito que acompañen a mi papá al doctor el viernes”",
+                        text: $descriptionText,
+                        axis: .vertical
+                    )
+                    .lineLimit(2...)
+                    .font(.body).foregroundStyle(Color.acoInk)
+                    .focused($detailsFocused)
+                    .onChange(of: detailsFocused) { _, focused in
+                        if !focused { autocomplete() }
+                    }
+
+                    HStack {
+                        Button {
+                            detailsFocused = false
+                            autocomplete()
+                        } label: {
+                            Label("Autocompletar", systemImage: "wand.and.stars")
+                                .font(.caption).fontWeight(.bold)
+                                .foregroundStyle(Color.acoFamily)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(Color.acoFamilySoft)
+                                .clipShape(.capsule)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(descriptionText.isEmpty)
+
+                        if let aiSummary {
+                            Text(aiSummary)
+                                .font(.caption).foregroundStyle(Color.acoInk2)
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                    }
+                }
+                .padding(14)
+                .background(Color(acoHex: "FDFBF8"))
+                .clipShape(.rect(cornerRadius: 14))
+                .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1) }
+                .padding(.horizontal, 20)
+
+                Text("La IA del dispositivo sugiere tipo, urgencia y fecha. Tú decides antes de publicar.")
+                    .font(.caption).foregroundStyle(Color.acoInk3)
+                    .padding(.horizontal, 24).padding(.top, 7)
+
                 // Tipo de ayuda
                 fieldLabel("¿Con qué necesita ayuda?")
                     .padding(.horizontal, 20).padding(.top, 22)
@@ -144,17 +195,6 @@ struct FamilyPublishView: View {
                     }
                 }
                 .padding(.horizontal, 20)
-
-                // Descripción
-                fieldLabel("Detalles").padding(.horizontal, 20).padding(.top, 22)
-                TextField("Describe qué necesita…", text: $descriptionText, axis: .vertical)
-                    .lineLimit(3...)
-                    .font(.body).foregroundStyle(Color.acoInk)
-                    .padding(14)
-                    .background(Color(acoHex: "FDFBF8"))
-                    .clipShape(.rect(cornerRadius: 14))
-                    .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1) }
-                    .padding(.horizontal, 20)
 
                 // Fecha y hora
                 fieldLabel("¿Cuándo?").padding(.horizontal, 20).padding(.top, 22)
@@ -243,6 +283,35 @@ struct FamilyPublishView: View {
         .background(Color.acoBg)
     }
 
+    // MARK: - IA on-device (NaturalLanguage)
+
+    /// Parsea la descripción libre y prellena el formulario. El usuario puede corregir.
+    private func autocomplete() {
+        guard !descriptionText.isEmpty else { return }
+        let intent = IntentParser.parseIntent(from: descriptionText)
+
+        var parts: [String] = []
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let activity = intent.activityType {
+                selectedActivity = activity
+                parts.append(activity.label)
+            }
+            if intent.isUrgent {
+                isUrgent = true
+                parts.append("urgente")
+            }
+            if let date = intent.suggestedDate, date > Date() {
+                scheduledDate = date
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "es_MX")
+                df.dateFormat = "EEE d MMM · HH:mm"
+                parts.append(df.string(from: date))
+            }
+            aiSummary = parts.isEmpty ? nil : "Sugerido: \(parts.joined(separator: " · "))"
+        }
+        if !parts.isEmpty { KuidarHaptic.light() }
+    }
+
     // MARK: - API call
 
     private func publishRequest() async {
@@ -279,6 +348,7 @@ struct FamilyPublishView: View {
         selectedActivity = .mandados
         isUrgent = false
         selectedDurationMinutes = nil
+        aiSummary = nil
         scheduledDate = Calendar.current.date(byAdding: .hour, value: 2, to: Date()) ?? Date()
     }
 

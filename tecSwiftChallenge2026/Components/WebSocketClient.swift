@@ -37,6 +37,8 @@ final class WebSocketClient {
     private(set) var isConnected = false
     var onLocation: ((WSLocationBroadcast) -> Void)?
     var onStatus: ((WSAssignmentStatus) -> Void)?
+    /// Se dispara cuando un request se reabre (cancelación del becario). Param: requestId.
+    var onRequestReopened: ((String) -> Void)?
 
     private var task: URLSessionWebSocketTask?
     private var subscribed: Set<String> = []
@@ -142,6 +144,10 @@ final class WebSocketClient {
         case "assignment:status":
             if let payload = try? decoder.decode(WSAssignmentStatus.self, from: data) {
                 onStatus?(payload)
+            }
+        case "request:reopened":
+            if let requestId = envelope["requestId"] as? String {
+                onRequestReopened?(requestId)
             }
         default:
             break

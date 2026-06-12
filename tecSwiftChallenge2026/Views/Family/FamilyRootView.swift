@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum FamilyTab: Hashable {
-    case publish, dashboard, family
+    case publish, dashboard, family, events
 }
 
 struct FamilyRootView: View {
@@ -26,6 +26,12 @@ struct FamilyRootView: View {
                         .navigationDestination(for: APIAssignment.self) { assignment in
                             FamilyLiveVisitView(assignment: assignment)
                         }
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
+                }
+            }
+            Tab("Eventos", systemImage: "person.3.fill", value: FamilyTab.events) {
+                NavigationStack {
+                    CommunityEventsView(isOrganizer: false)
                         .toolbar { ToolbarItem(placement: .topBarTrailing) { logoutButton } }
                 }
             }

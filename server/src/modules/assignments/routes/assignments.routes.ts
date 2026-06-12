@@ -11,7 +11,7 @@ export const assignmentsRouter = Router();
 assignmentsRouter.use(requireAuth);
 
 assignmentsRouter.get("/mine", requireRole("student"), assignmentsController.listMine);
-assignmentsRouter.get("/for-family", requireRole("family"), assignmentsController.listForFamily);
+assignmentsRouter.get("/for-family", requireRole("family", "organizer"), assignmentsController.listForFamily);
 assignmentsRouter.get("/for-elderly", requireRole("elderly"), assignmentsController.listForElderly);
 assignmentsRouter.get("/:id", assignmentsController.getById);
 
@@ -20,7 +20,7 @@ assignmentsRouter.post("/:id/en-camino", requireRole("student"), assignmentsCont
 assignmentsRouter.post("/:id/iniciar", requireRole("student"), assignmentsController.iniciar);
 assignmentsRouter.post("/:id/confirmar-inicio", requireRole("elderly"), assignmentsController.confirmarInicio);
 assignmentsRouter.post("/:id/completar", requireRole("student"), assignmentsController.completar);
-assignmentsRouter.post("/:id/cancelar", requireRole("family"), assignmentsController.cancelar);
+assignmentsRouter.post("/:id/cancelar", requireRole("family", "organizer"), assignmentsController.cancelar);
 
 // Ubicación (REST fallback del WebSocket)
 assignmentsRouter.post(

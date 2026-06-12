@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { db } from "../db/sqlite.js";
 import { UnauthorizedError } from "../errors/appError.js";
 
-export type UserRole = "family" | "student" | "elderly";
+export type UserRole = "family" | "student" | "elderly" | "organizer";
 
 export interface AuthContext {
   id: string;
@@ -49,7 +49,7 @@ export function resolveAuthContext(token: string): AuthContext | null {
 
   const ctx: AuthContext = { id: user.id, name: user.name, email: user.email, role: user.role };
 
-  if (user.role === "family") {
+  if (user.role === "family" || user.role === "organizer") {
     const member = db
       .prepare("SELECT family_id FROM family_members WHERE user_id = ?")
       .get(user.id) as { family_id: string } | undefined;

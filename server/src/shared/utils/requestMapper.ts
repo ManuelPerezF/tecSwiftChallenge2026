@@ -40,6 +40,9 @@ export interface ActivityRequestRow {
   elderly_name?: string | null;
   neighborhood?: string | null;
   duration_minutes?: number | null;
+  is_community_event?: number;
+  max_helpers_required?: number;
+  active_helpers?: number;
 }
 
 export interface NormalizedRequest {
@@ -59,6 +62,9 @@ export interface NormalizedRequest {
   matchScore: number;
   duration: string;
   hours: number;
+  isCommunityEvent: boolean;
+  maxHelpersRequired: number;
+  activeHelpers: number;
 }
 
 function matchScore(activityType: string): number {
@@ -98,5 +104,8 @@ export function normalizeRequest(row: ActivityRequestRow): NormalizedRequest {
     matchScore: matchScore(row.activity_type),
     duration: row.duration_minutes ? formatDuration(row.duration_minutes) : durationLabel(row.activity_type),
     hours: row.duration_minutes ? row.duration_minutes / 60 : activityHours(row.activity_type),
+    isCommunityEvent: row.is_community_event === 1,
+    maxHelpersRequired: row.max_helpers_required ?? 1,
+    activeHelpers: row.active_helpers ?? 0,
   };
 }

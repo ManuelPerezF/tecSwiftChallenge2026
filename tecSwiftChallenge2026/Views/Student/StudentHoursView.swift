@@ -4,10 +4,19 @@ struct StudentHoursView: View {
     @AppStorage("student_goal_hours") private var goalHours: Int = 0
     @AppStorage("aco_authToken") private var authToken: String = ""
 
+    @AppStorage("aco_studentTags") private var savedTags: String = ""
+
     @State private var assignments: [APIAssignment] = []
     @State private var isLoading = false
     @State private var showGoalSheet = false
     @State private var goalInput: String = ""
+    @State private var showTagsSheet = false
+    @State private var tagsInput: String = ""
+    @State private var tagsError: String?
+
+    private var myTags: [String] {
+        savedTags.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
 
     private var completedAssignments: [APIAssignment] {
         assignments.filter { $0.statusEnum == .completada }
@@ -48,6 +57,9 @@ struct StudentHoursView: View {
                             breakdownCard
                         }
 
+                        SectionLabel(text: "Mis intereses").padding(.top, 22)
+                        tagsCard
+
                         Spacer().frame(height: 100)
                     }
                     .padding(.horizontal, 20)
@@ -71,6 +83,7 @@ struct StudentHoursView: View {
             }
         }
         .sheet(isPresented: $showGoalSheet) { goalSheet }
+        .sheet(isPresented: $showTagsSheet) { tagsSheet }
         .task { await load() }
         .refreshable { await load() }
         .onAppear {
@@ -183,6 +196,88 @@ struct StudentHoursView: View {
         }
     }
 
+    // MARK: - Tags (intereses para el recomendador de afinidad)
+
+    private var tagsCard: some View {
+        AcoCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Las familias verán primero a los becarios con intereses afines a su familiar.")
+                    .font(.caption).foregroundStyle(Color.acoInk2)
+
+                if myTags.isEmpty {
+                    Text("Aún no agregas intereses.")
+                        .font(.subheadline).foregroundStyle(Color.acoInk3)
+                } else {
+                    FlowTags(tags: myTags)
+                }
+
+                Button {
+                    tagsInput = myTags.joined(separator: ", ")
+                    showTagsSheet = true
+                } label: {
+                    Label(myTags.isEmpty ? "Agregar intereses" : "Editar intereses", systemImage: "tag.fill")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.acoStudent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var tagsSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Escribe tus intereses separados por comas. Ej. cocina, dominó, jardinería, fútbol")
+                    .font(.body).foregroundStyle(Color.acoInk2)
+
+                TextField("cocina, dominó, plantas…", text: $tagsInput, axis: .vertical)
+                    .lineLimit(2...)
+                    .font(.body)
+                    .padding(14)
+                    .background(Color(acoHex: "F8F5F1"))
+                    .clipShape(.rect(cornerRadius: 12))
+
+                if let tagsError {
+                    Label(tagsError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(Color.acoUrgent)
+                }
+
+                CTAButton(label: "Guardar intereses", tint: .acoStudent) {
+                    Task { await saveTags() }
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 32)
+            .navigationTitle("Mis intereses")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cancelar") { showTagsSheet = false }
+                        .foregroundStyle(Color.acoInk3)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func saveTags() async {
+        tagsError = nil
+        let tags = tagsInput
+            .split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty }
+        do {
+            let saved = try await APIClient.shared.updateMyTags(tags)
+            savedTags = saved.joined(separator: ",")
+            showTagsSheet = false
+            KuidarHaptic.success()
+        } catch {
+            tagsError = error.localizedDescription
+        }
+    }
+
     // MARK: - Goal sheet
 
     private var goalSheet: some View {
@@ -250,6 +345,29 @@ struct StudentHoursView: View {
         h.truncatingRemainder(dividingBy: 1) == 0
             ? String(format: "%.0f", h)
             : String(format: "%.1f", h)
+    }
+}
+
+// MARK: - Chips de tags (wrap simple)
+
+struct FlowTags: View {
+    let tags: [String]
+    var tint: Color = .acoStudent
+
+    var body: some View {
+        // Wrap manual sencillo: filas de chips
+        let columns = [GridItem(.adaptive(minimum: 80), spacing: 6, alignment: .leading)]
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 6) {
+            ForEach(tags, id: \.self) { tag in
+                Text(tag)
+                    .font(.caption).fontWeight(.semibold)
+                    .foregroundStyle(tint)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(tint.opacity(0.11))
+                    .clipShape(.capsule)
+                    .lineLimit(1)
+            }
+        }
     }
 }
 

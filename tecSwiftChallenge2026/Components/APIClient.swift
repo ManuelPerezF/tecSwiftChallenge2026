@@ -109,7 +109,9 @@ final class APIClient {
         isUrgent: Bool,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        durationMinutes: Int? = nil
+        durationMinutes: Int? = nil,
+        isCommunityEvent: Bool = false,
+        maxHelpersRequired: Int? = nil
     ) async throws -> APIRequest {
         var body: [String: Any] = [
             "activityType":  activityType.rawValue,
@@ -121,7 +123,25 @@ final class APIClient {
         if let lat = latitude  { body["lat"] = lat }
         if let lng = longitude { body["lng"] = lng }
         if let dm = durationMinutes { body["durationMinutes"] = dm }
+        if isCommunityEvent {
+            body["isCommunityEvent"] = true
+            if let max = maxHelpersRequired { body["maxHelpersRequired"] = max }
+        }
         return try await post(path: "requests", body: body)
+    }
+
+    // MARK: - Eventos comunitarios
+
+    func fetchCommunityEvents() async throws -> [APIRequest] {
+        try await get(path: "requests/events")
+    }
+
+    func registerAttendee(requestId: String) async throws {
+        let _: [String: Bool] = try await post(path: "requests/\(requestId)/attendees", body: [:])
+    }
+
+    func fetchAttendees(requestId: String) async throws -> [EventAttendee] {
+        try await get(path: "requests/\(requestId)/attendees")
     }
 
     func deleteRequest(id: String) async throws {
@@ -206,6 +226,16 @@ final class APIClient {
 
     func fetchStudentProfile(id: String) async throws -> StudentProfile {
         try await get(path: "students/\(id)")
+    }
+
+    /// El estudiante actualiza los tags de afinidad de su propio perfil.
+    func updateMyTags(_ tags: [String]) async throws -> [String] {
+        struct TagsResponse: Codable { let tags: [String] }
+        var req = request(path: "students/me/tags", method: "PUT")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["tags": tags])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validate(response, data: data)
+        return try decoder.decode(TagsResponse.self, from: data).tags
     }
 
     // MARK: - Private helpers

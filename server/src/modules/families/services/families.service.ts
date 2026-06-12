@@ -10,11 +10,21 @@ interface ElderlyRow {
   neighborhood: string;
   lat: number;
   lng: number;
+  tags: string;
+}
+
+function parseTags(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 function elderlyForFamily(familyId: string): ElderlySummary[] {
   const rows = db
-    .prepare("SELECT id, first_name, address, neighborhood, lat, lng FROM elderly_profiles WHERE family_id = ?")
+    .prepare("SELECT id, first_name, address, neighborhood, lat, lng, tags FROM elderly_profiles WHERE family_id = ?")
     .all(familyId) as ElderlyRow[];
   return rows.map((r) => ({
     id: r.id,
@@ -23,6 +33,7 @@ function elderlyForFamily(familyId: string): ElderlySummary[] {
     neighborhood: r.neighborhood,
     lat: r.lat,
     lng: r.lng,
+    tags: parseTags(r.tags),
   }));
 }
 

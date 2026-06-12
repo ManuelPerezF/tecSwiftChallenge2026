@@ -10,11 +10,16 @@ export const requestsRouter = Router();
 
 requestsRouter.use(requireAuth);
 
-requestsRouter.get("/mine", requireRole("family"), requestsController.listMine);
+requestsRouter.get("/mine", requireRole("family", "organizer"), requestsController.listMine);
 requestsRouter.get("/open", requireRole("student"), requestsController.listOpen);
+requestsRouter.get("/events", requestsController.listCommunityEvents);
 requestsRouter.get("/:id", requestsController.getById);
-requestsRouter.post("/", requireRole("family"), validateBody(createRequestBodySchema), requestsController.create);
-requestsRouter.delete("/:id", requireRole("family"), requestsController.remove);
+requestsRouter.post("/", requireRole("family", "organizer"), validateBody(createRequestBodySchema), requestsController.create);
+requestsRouter.delete("/:id", requireRole("family", "organizer"), requestsController.remove);
+
+// Asistentes a eventos comunitarios
+requestsRouter.post("/:id/attendees", requireRole("family", "elderly"), requestsController.registerAttendee);
+requestsRouter.get("/:id/attendees", requestsController.listAttendees);
 
 // Postulaciones anidadas
 requestsRouter.post(
@@ -23,4 +28,4 @@ requestsRouter.post(
   validateBody(applyBodySchema),
   applicationsController.apply,
 );
-requestsRouter.get("/:id/applications", requireRole("family"), applicationsController.listForRequest);
+requestsRouter.get("/:id/applications", requireRole("family", "organizer"), applicationsController.listForRequest);

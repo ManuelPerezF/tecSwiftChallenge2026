@@ -13,7 +13,8 @@ const SELECT_WITH_ELDERLY = `
   SELECT r.*,
          e.first_name AS elderly_name, e.neighborhood,
          CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
-         CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude
+         CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude,
+         (SELECT COUNT(*) FROM assignments a WHERE a.request_id = r.id AND a.status != 'cancelada') AS active_helpers
   FROM   activity_requests r
   LEFT JOIN elderly_profiles e ON r.elderly_profile_id = e.id
 `;
@@ -47,8 +48,22 @@ export const requestsService = {
     return normalizeRequest(row);
   },
 
+  /** Eventos comunitarios visibles para todos los roles autenticados. */
+  findCommunityEvents(): NormalizedRequest[] {
+    const rows = db
+      .prepare(`${SELECT_WITH_ELDERLY} WHERE r.is_community_event = 1 AND r.status IN ('open','claimed','inProgress') ORDER BY r.scheduled_date ASC`)
+      .all() as ActivityRequestRow[];
+    return rows.map(normalizeRequest);
+  },
+
   create(auth: AuthContext, data: CreateRequestBody): NormalizedRequest {
     if (!auth.familyId) throw new ValidationError("No perteneces a una familia");
+
+    const isCommunityEvent = data.isCommunityEvent === true;
+    if (isCommunityEvent && auth.role !== "organizer") {
+      throw new UnauthorizedError("Solo un organizador puede crear eventos comunitarios");
+    }
+    const maxHelpers = isCommunityEvent ? Math.max(data.maxHelpersRequired ?? 1, 1) : 1;
 
     // Resolver adulto mayor: el indicado o el primero de la familia
     let elderly: ElderlyRow | undefined;
@@ -75,8 +90,8 @@ export const requestsService = {
     const requestId = uuidv4();
     db.prepare(`
       INSERT INTO activity_requests
-        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, family_id, elderly_profile_id, activity_type, details, scheduled_date, is_urgent, latitude, longitude, duration_minutes, is_community_event, max_helpers_required)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       requestId,
       auth.familyId,
@@ -88,9 +103,52 @@ export const requestsService = {
       latitude,
       longitude,
       data.durationMinutes ?? null,
+      isCommunityEvent ? 1 : 0,
+      maxHelpers,
     );
 
     return this.findById(requestId);
+  },
+
+  /** Registro de asistentes (familias/adultos mayores) a un evento comunitario. */
+  registerAttendee(auth: AuthContext, requestId: string): { ok: true } {
+    const row = db
+      .prepare("SELECT id, is_community_event FROM activity_requests WHERE id = ?")
+      .get(requestId) as { id: string; is_community_event: number } | undefined;
+    if (!row) throw new NotFoundError("Evento no encontrado");
+    if (row.is_community_event !== 1) {
+      throw new AppError("Esta solicitud no es un evento comunitario", 409, "NOT_COMMUNITY_EVENT");
+    }
+
+    const existing = db
+      .prepare("SELECT id FROM event_attendees WHERE request_id = ? AND attendee_user_id = ?")
+      .get(requestId, auth.id);
+    if (existing) throw new AppError("Ya estás registrado en este evento", 409, "ALREADY_REGISTERED");
+
+    db.prepare("INSERT INTO event_attendees (id, request_id, attendee_user_id) VALUES (?, ?, ?)")
+      .run(uuidv4(), requestId, auth.id);
+    return { ok: true };
+  },
+
+  listAttendees(requestId: string): Array<{ id: string; userId: string; name: string; role: string; createdAt: string }> {
+    const request = db.prepare("SELECT id FROM activity_requests WHERE id = ?").get(requestId);
+    if (!request) throw new NotFoundError("Evento no encontrado");
+
+    const rows = db
+      .prepare(`
+        SELECT ea.id, ea.attendee_user_id, ea.created_at, u.name, u.role
+        FROM event_attendees ea JOIN users u ON ea.attendee_user_id = u.id
+        WHERE ea.request_id = ? ORDER BY ea.created_at ASC
+      `)
+      .all(requestId) as Array<{ id: string; attendee_user_id: string; created_at: string; name: string; role: string }>;
+
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.attendee_user_id,
+      name: r.name,
+      role: r.role,
+      createdAt: r.created_at,
+    }));
   },
 
   remove(auth: AuthContext, id: string): { ok: true } {

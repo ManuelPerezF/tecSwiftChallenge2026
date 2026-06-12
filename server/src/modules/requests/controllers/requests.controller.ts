@@ -43,4 +43,28 @@ export const requestsController = {
       next(error);
     }
   },
+
+  listCommunityEvents(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(requestsService.findCommunityEvents());
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  registerAttendee(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.status(201).json(requestsService.registerAttendee(req.auth!, req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  listAttendees(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.json(requestsService.listAttendees(req.params.id as string));
+    } catch (error) {
+      next(error);
+    }
+  },
 };

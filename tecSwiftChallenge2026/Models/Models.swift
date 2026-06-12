@@ -118,6 +118,9 @@ struct ElderlySummary: Codable, Identifiable, Hashable, Sendable {
     let neighborhood: String
     let lat: Double
     let lng: Double
+    let tags: [String]?
+
+    var tagList: [String] { tags ?? [] }
 }
 
 // MARK: - Postulaciones
@@ -132,7 +135,22 @@ struct APIApplication: Codable, Identifiable, Hashable, Sendable {
     let totalHours: Double
     let averageRating: Double
     let message: String
-    let status: String      // pending | approved | rejected
+    let status: String      // pending | approved | rejected | waiting_list | cancelled_by_helper
+    let createdAt: String
+    let tags: [String]?
+
+    var isPending: Bool { status == "pending" }
+    var isWaitingList: Bool { status == "waiting_list" }
+    var tagList: [String] { tags ?? [] }
+}
+
+// MARK: - Eventos comunitarios
+
+struct EventAttendee: Codable, Identifiable, Hashable, Sendable {
+    let id: String
+    let userId: String
+    let name: String
+    let role: String
     let createdAt: String
 }
 
@@ -251,8 +269,11 @@ struct StudentProfile: Codable, Identifiable, Sendable {
     let career: String
     let totalHours: Double
     let averageRating: Double
+    let tags: [String]?
     let badges: [APIBadge]
     let ratings: [APIRating]
+
+    var tagList: [String] { tags ?? [] }
 }
 
 // MARK: - Ubicación
@@ -268,6 +289,7 @@ struct APILocation: Codable, Hashable, Sendable {
 
 struct APIRequest: Codable, Identifiable, Hashable, Sendable {
     let id: String
+    let elderlyProfileId: String?
     let activityType: String
     let details: String
     let scheduledDate: String   // ISO8601 string
@@ -281,6 +303,13 @@ struct APIRequest: Codable, Identifiable, Hashable, Sendable {
     let matchScore: Int
     let duration: String
     let hours: Double
+    // Eventos comunitarios (opcionales para compatibilidad)
+    let isCommunityEvent: Bool?
+    let maxHelpersRequired: Int?
+    let activeHelpers: Int?
+
+    var isEvent: Bool { isCommunityEvent ?? false }
+    var helpersLabel: String { "\(activeHelpers ?? 0)/\(maxHelpersRequired ?? 1) becarios" }
 
     // MARK: Computed helpers
 

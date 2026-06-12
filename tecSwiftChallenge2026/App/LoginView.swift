@@ -319,6 +319,9 @@ struct LoginView: View {
                 .font(.caption)
                 .foregroundStyle(Color.acoInk3)
                 .padding(.bottom, 20)
+
+        case .organizer:
+            labeledField("NOMBRE DE TU ORGANIZACIÓN (OPCIONAL)", placeholder: "Ej. Centro Comunitario Del Valle", text: $familyName, field: .familyName)
         }
     }
 

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../../../shared/db/sqlite.js";
 import { AppError, NotFoundError, UnauthorizedError } from "../../../shared/errors/appError.js";
 import type { AuthContext } from "../../../shared/middlewares/auth.middleware.js";
-import { broadcastAssignmentStatus, broadcastLocation } from "../../../ws/socketServer.js";
+import { broadcastAssignmentStatus, broadcastLocation, broadcastRequestReopened } from "../../../ws/socketServer.js";
 import { badgesService } from "../../badges/services/badges.service.js";
 import type {
   AssignmentStatus,
@@ -14,6 +14,7 @@ import type {
 interface AssignmentRow {
   id: string;
   request_id: string;
+  application_id: string;
   student_id: string;
   status: "approved" | "en_camino" | "iniciada" | "completada" | "cancelada";
   approved_at: string;
@@ -34,6 +35,8 @@ interface AssignmentRow {
   neighborhood: string | null;
   address: string | null;
   family_id: string;
+  is_community_event: number;
+  max_helpers_required: number;
 }
 
 const SELECT_FULL = `
@@ -41,7 +44,7 @@ const SELECT_FULL = `
          r.activity_type, r.details, r.scheduled_date, r.is_urgent,
          CASE WHEN e.lat IS NOT NULL AND e.lat != 0 THEN e.lat ELSE r.latitude END AS latitude,
          CASE WHEN e.lng IS NOT NULL AND e.lng != 0 THEN e.lng ELSE r.longitude END AS longitude,
-         r.family_id, r.elderly_profile_id,
+         r.family_id, r.elderly_profile_id, r.is_community_event, r.max_helpers_required,
          e.first_name AS elderly_name, e.neighborhood, e.address
   FROM   assignments a
   JOIN   activity_requests r ON a.request_id = r.id
@@ -224,10 +227,37 @@ export const assignmentsService = {
     if (row.family_id !== auth.familyId) throw new UnauthorizedError("No es una visita de tu familia");
     assertTransition(resolveStatus(row), "cancelada");
 
-    db.prepare("UPDATE assignments SET status = 'cancelada' WHERE id = ?").run(id);
-    db.prepare("UPDATE activity_requests SET status = 'cancelled' WHERE id = ?").run(row.request_id);
+    let reopened = false;
+    const tx = db.transaction(() => {
+      db.prepare("UPDATE assignments SET status = 'cancelada' WHERE id = ?").run(id);
+      // La postulación de ESTE assignment no se queda en 'approved'
+      db.prepare("UPDATE applications SET status = 'cancelled_by_helper' WHERE id = ? AND status = 'approved'")
+        .run(row.application_id);
+
+      if (row.is_community_event === 1) {
+        // Evento multi-cupo: reabrir solo si quedó cupo libre
+        const { n } = db
+          .prepare("SELECT COUNT(*) AS n FROM assignments WHERE request_id = ? AND status != 'cancelada'")
+          .get(row.request_id) as { n: number };
+        if (n < row.max_helpers_required) {
+          db.prepare("UPDATE applications SET status = 'pending' WHERE request_id = ? AND status = 'waiting_list'")
+            .run(row.request_id);
+          db.prepare("UPDATE activity_requests SET status = 'open' WHERE id = ?").run(row.request_id);
+          reopened = true;
+        }
+      } else {
+        // Las de waiting_list vuelven al pool como pending (la familia decide, sin auto-asignar)
+        db.prepare("UPDATE applications SET status = 'pending' WHERE request_id = ? AND status = 'waiting_list'")
+          .run(row.request_id);
+        // El request se reabre en lugar de morir
+        db.prepare("UPDATE activity_requests SET status = 'open' WHERE id = ?").run(row.request_id);
+        reopened = true;
+      }
+    });
+    tx();
 
     broadcastAssignmentStatus(id);
+    if (reopened) broadcastRequestReopened(row.request_id);
     return toView(getRow(id));
   },
 

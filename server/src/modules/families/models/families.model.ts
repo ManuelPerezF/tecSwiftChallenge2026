@@ -20,4 +20,5 @@ export interface ElderlySummary {
   neighborhood: string;
   lat: number;
   lng: number;
+  tags: string[];
 }

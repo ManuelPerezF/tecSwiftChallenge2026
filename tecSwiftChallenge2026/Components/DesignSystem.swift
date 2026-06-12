@@ -53,9 +53,10 @@ enum KuidarHaptic {
 extension AppRole {
     var symbolName: String {
         switch self {
-        case .family:  "person.2.fill"
-        case .student: "graduationcap.fill"
-        case .elderly: "figure.stand"
+        case .family:    "person.2.fill"
+        case .student:   "graduationcap.fill"
+        case .elderly:   "figure.stand"
+        case .organizer: "person.3.fill"
         }
     }
 }
@@ -78,16 +79,18 @@ extension ActivityType {
 extension AppRole {
     var tint: Color {
         switch self {
-        case .family:  .acoFamily
-        case .student: .acoStudent
-        case .elderly: .acoElderly
+        case .family:    .acoFamily
+        case .student:   .acoStudent
+        case .elderly:   .acoElderly
+        case .organizer: .acoFamily
         }
     }
     var soft: Color {
         switch self {
-        case .family:  .acoFamilySoft
-        case .student: .acoStudentSoft
-        case .elderly: .acoElderlySoft
+        case .family:    .acoFamilySoft
+        case .student:   .acoStudentSoft
+        case .elderly:   .acoElderlySoft
+        case .organizer: .acoFamilySoft
         }
     }
 }

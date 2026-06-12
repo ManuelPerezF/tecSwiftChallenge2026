@@ -50,7 +50,7 @@ db.exec(`
     email         TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     name          TEXT NOT NULL,
-    role          TEXT NOT NULL CHECK(role IN ('family', 'student', 'elderly')),
+    role          TEXT NOT NULL CHECK(role IN ('family', 'student', 'elderly', 'organizer')),
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -123,14 +123,14 @@ db.exec(`
     request_id TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
     student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     message    TEXT NOT NULL DEFAULT '',
-    status     TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    status     TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','waiting_list','cancelled_by_helper')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(request_id, student_id)
   );
 
   CREATE TABLE IF NOT EXISTS assignments (
     id             TEXT PRIMARY KEY,
-    request_id     TEXT NOT NULL UNIQUE REFERENCES activity_requests(id) ON DELETE CASCADE,
+    request_id     TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
     application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
     student_id     TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
     status         TEXT NOT NULL DEFAULT 'approved'
@@ -191,9 +191,18 @@ db.exec(`
     UNIQUE(assignment_id, user_id)
   );
 
+  CREATE TABLE IF NOT EXISTS event_attendees (
+    id               TEXT PRIMARY KEY,
+    request_id       TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
+    attendee_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(request_id, attendee_user_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_requests_status ON activity_requests(status);
   CREATE INDEX IF NOT EXISTS idx_applications_request ON applications(request_id);
   CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id);
+  CREATE INDEX IF NOT EXISTS idx_assignments_request ON assignments(request_id);
 `);
 
 // Migraciones incrementales
@@ -202,6 +211,94 @@ if (!assignmentCols.some((c) => c.name === "inicio_solicitado_at")) {
   db.exec("ALTER TABLE assignments ADD COLUMN inicio_solicitado_at TEXT");
 }
 addColumnIfMissing("activity_requests", "duration_minutes", "INTEGER");
+addColumnIfMissing("activity_requests", "is_community_event", "INTEGER NOT NULL DEFAULT 0");
+addColumnIfMissing("activity_requests", "max_helpers_required", "INTEGER NOT NULL DEFAULT 1");
+// Tags de afinidad (JSON array string) para el recomendador on-device
+addColumnIfMissing("students", "tags", "TEXT NOT NULL DEFAULT '[]'");
+addColumnIfMissing("elderly_profiles", "tags", "TEXT NOT NULL DEFAULT '[]'");
+
+// ── Migraciones Lumina (rebuild de tablas con CHECK/UNIQUE cambiados; preserva datos) ──
+
+/** Reconstruye una tabla con una nueva definición, copiando todas las filas existentes. */
+function rebuildTable(table: string, createNewSql: string, postSql: string[] = []) {
+  db.pragma("foreign_keys = OFF");
+  const tx = db.transaction(() => {
+    db.exec(createNewSql); // crea `${table}_new`
+    const cols = (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>)
+      .map((c) => c.name)
+      .join(", ");
+    db.exec(`INSERT INTO ${table}_new (${cols}) SELECT ${cols} FROM ${table}`);
+    db.exec(`DROP TABLE ${table}`);
+    db.exec(`ALTER TABLE ${table}_new RENAME TO ${table}`);
+    for (const sql of postSql) db.exec(sql);
+  });
+  tx();
+  db.pragma("foreign_keys = ON");
+}
+
+function tableSql(table: string): string {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(table) as { sql: string } | undefined;
+  return row?.sql ?? "";
+}
+
+// users: agregar rol 'organizer' al CHECK
+if (!tableSql("users").includes("organizer")) {
+  rebuildTable(
+    "users",
+    `CREATE TABLE users_new (
+      id            TEXT PRIMARY KEY,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name          TEXT NOT NULL,
+      role          TEXT NOT NULL CHECK(role IN ('family', 'student', 'elderly', 'organizer')),
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  );
+}
+
+// applications: agregar estados 'waiting_list' y 'cancelled_by_helper' al CHECK
+if (!tableSql("applications").includes("waiting_list")) {
+  rebuildTable(
+    "applications",
+    `CREATE TABLE applications_new (
+      id         TEXT PRIMARY KEY,
+      request_id TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
+      student_id TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      message    TEXT NOT NULL DEFAULT '',
+      status     TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','waiting_list','cancelled_by_helper')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(request_id, student_id)
+    )`,
+    ["CREATE INDEX IF NOT EXISTS idx_applications_request ON applications(request_id)"],
+  );
+}
+
+// assignments: quitar UNIQUE de request_id (reapertura tras cancelación + eventos multi-cupo)
+if (tableSql("assignments").includes("UNIQUE REFERENCES activity_requests")) {
+  rebuildTable(
+    "assignments",
+    `CREATE TABLE assignments_new (
+      id             TEXT PRIMARY KEY,
+      request_id     TEXT NOT NULL REFERENCES activity_requests(id) ON DELETE CASCADE,
+      application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+      student_id     TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      status         TEXT NOT NULL DEFAULT 'approved'
+                     CHECK(status IN ('approved','en_camino','iniciada','completada','cancelada')),
+      approved_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      en_camino_at   TEXT,
+      inicio_solicitado_at TEXT,
+      checkin_at     TEXT,
+      checkout_at    TEXT,
+      hours_logged   REAL NOT NULL DEFAULT 0
+    )`,
+    [
+      "CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id)",
+      "CREATE INDEX IF NOT EXISTS idx_assignments_request ON assignments(request_id)",
+    ],
+  );
+}
 
 // ── Seed ──────────────────────────────────────────────────────────
 

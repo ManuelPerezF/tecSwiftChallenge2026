@@ -6,11 +6,14 @@ import MapKit
 struct FamilyApplicantsView: View {
     let request: APIRequest
 
+    @AppStorage("aco_authToken") private var authToken: String = ""
     @State private var applicants: [APIApplication] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var busyId: String?
     @State private var approvedAssignmentId: String?
+    @State private var ws = WebSocketClient()
+    @State private var elderlyTags: [String] = []
 
     var body: some View {
         ZStack {
@@ -33,10 +36,24 @@ struct FamilyApplicantsView: View {
         }
         .task { await load() }
         .refreshable { await load() }
+        .onAppear {
+            // Si el becario aprobado cancela, el pool se reabre en vivo
+            ws.onRequestReopened = { reopenedId in
+                guard reopenedId == request.id else { return }
+                withAnimation(.easeInOut(duration: 0.22)) { approvedAssignmentId = nil }
+                Task { await load() }
+            }
+            ws.connect(token: authToken)
+        }
+        .onDisappear { ws.disconnect() }
     }
 
     private var pending: [APIApplication] {
-        applicants.filter { $0.status == "pending" }
+        applicants.filter(\.isPending)
+    }
+
+    private var waitingList: [APIApplication] {
+        applicants.filter(\.isWaitingList)
     }
 
     private var list: some View {
@@ -56,6 +73,24 @@ struct FamilyApplicantsView: View {
                         onApprove: { Task { await approve(applicant) } },
                         onReject: { Task { await reject(applicant) } }
                     )
+                }
+
+                if !waitingList.isEmpty {
+                    Text("En lista de espera")
+                        .font(.caption).bold().textCase(.uppercase)
+                        .tracking(0.4).foregroundStyle(Color.acoInk3)
+                        .padding(.top, 8)
+                    Text("Si la visita se cancela, volverán al pool para que elijas.")
+                        .font(.caption).foregroundStyle(Color.acoInk3)
+
+                    ForEach(waitingList) { applicant in
+                        ApplicantCard(
+                            applicant: applicant,
+                            isBusy: busyId == applicant.id,
+                            onApprove: nil,
+                            onReject: { Task { await reject(applicant) } }
+                        )
+                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -125,7 +160,15 @@ struct FamilyApplicantsView: View {
         isLoading = true
         errorMessage = nil
         do {
-            applicants = try await APIClient.shared.fetchApplicants(requestId: request.id)
+            // Tags del adulto mayor asociado (para el recomendador on-device)
+            if elderlyTags.isEmpty, let family = try? await APIClient.shared.fetchMyFamily() {
+                elderlyTags = family.elderly.first { $0.id == request.elderlyProfileId }?.tagList
+                    ?? family.elderly.first?.tagList
+                    ?? []
+            }
+            let fetched = try await APIClient.shared.fetchApplicants(requestId: request.id)
+            // Ordenar por afinidad (Create ML o fallback determinista)
+            applicants = HelperRecommender.shared.rank(applications: fetched, elderlyTags: elderlyTags)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -166,7 +209,7 @@ struct FamilyApplicantsView: View {
 private struct ApplicantCard: View {
     let applicant: APIApplication
     let isBusy: Bool
-    let onApprove: () -> Void
+    let onApprove: (() -> Void)?
     let onReject: () -> Void
 
     var body: some View {
@@ -183,6 +226,10 @@ private struct ApplicantCard: View {
                                     .font(.caption).foregroundStyle(Color.acoInk2)
                             }
                             Spacer()
+                            BadgeLabel(
+                                text: applicant.isWaitingList ? "En espera" : "Por revisar",
+                                color: applicant.isWaitingList ? .acoInk3 : .acoFamily
+                            )
                             Image(systemName: "chevron.right")
                                 .font(.caption.bold())
                                 .foregroundStyle(Color.acoInk3)
@@ -218,23 +265,25 @@ private struct ApplicantCard: View {
                     .buttonStyle(.plain)
                     .disabled(isBusy)
 
-                    Button(action: onApprove) {
-                        HStack(spacing: 6) {
-                            if isBusy {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Aprobar").fontWeight(.bold)
+                    if let onApprove {
+                        Button(action: onApprove) {
+                            HStack(spacing: 6) {
+                                if isBusy {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Aprobar").fontWeight(.bold)
+                                }
                             }
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.acoFamily)
+                            .clipShape(.rect(cornerRadius: 11))
                         }
-                        .font(.subheadline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.acoFamily)
-                        .clipShape(.rect(cornerRadius: 11))
+                        .buttonStyle(.plain)
+                        .disabled(isBusy)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isBusy)
                 }
                 .padding(12)
             }
