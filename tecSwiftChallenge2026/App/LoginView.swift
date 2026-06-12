@@ -44,13 +44,7 @@ struct LoginView: View {
         return base && hasName && studentOk
     }
 
-    private var brandGradient: LinearGradient {
-        LinearGradient(
-            colors: [Color(acoHex: "0C564E"), Color.acoFamily, Color(acoHex: "1D9E75")],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
+    private var brandHeaderFill: Color { .acoFamily }
 
     var body: some View {
         ZStack {
@@ -94,7 +88,7 @@ struct LoginView: View {
 
     private var splash: some View {
         ZStack {
-            brandGradient.ignoresSafeArea()
+            brandHeaderFill.ignoresSafeArea()
 
             VStack(spacing: 22) {
                 KuidarLogoView(height: 280, maxWidth: 320, animate: true)
@@ -134,19 +128,19 @@ struct LoginView: View {
 
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
-            brandGradient
+            brandHeaderFill
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: AcoSpacing.sm) {
                 Text("Kuidar")
-                    .font(.system(size: 44, weight: .black))
-                    .tracking(-1.2)
+                    .font(.largeTitle.weight(.bold))
+                    .tracking(-0.6)
                     .foregroundStyle(.white)
 
                 Text(isRegistering
                      ? "Crea tu cuenta para empezar."
                      : "Qué bueno verte de nuevo.")
-                    .font(.body)
-                    .foregroundStyle(.white.opacity(0.88))
+                    .font(.title3)
+                    .foregroundStyle(.white.opacity(0.9))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 28)
@@ -164,10 +158,10 @@ struct LoginView: View {
 
             if isRegistering {
                 rolePicker
-                labeledField("NOMBRE", placeholder: "Tu nombre completo", text: $name, field: .name)
+                labeledField("Nombre", placeholder: "Tu nombre completo", text: $name, field: .name)
             }
 
-            labeledField("CORREO", placeholder: "tu@correo.com", text: $email, field: .email, keyboard: .emailAddress)
+            labeledField("Correo", placeholder: "tu@correo.com", text: $email, field: .email, keyboard: .emailAddress)
             passwordField
 
             if isRegistering {
@@ -187,43 +181,20 @@ struct LoginView: View {
     }
 
     private var modeToggle: some View {
-        HStack(spacing: 0) {
-            modeButton("Entrar", active: !isRegistering) { isRegistering = false }
-            modeButton("Crear cuenta", active: isRegistering) { isRegistering = true }
+        Picker("Modo", selection: $isRegistering) {
+            Text("Entrar").tag(false)
+            Text("Crear cuenta").tag(true)
         }
-        .background(Color(acoHex: "EFE9E1"))
-        .clipShape(.rect(cornerRadius: 12))
-        .padding(.bottom, 24)
-    }
-
-    private func modeButton(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.18)) {
-                action()
-                errorMessage = nil
-            }
-        } label: {
-            Text(label)
-                .font(.subheadline)
-                .fontWeight(active ? .bold : .regular)
-                .foregroundStyle(active ? Color.acoInk : Color.acoInk3)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(active ? Color.white : Color.clear)
-                .clipShape(.rect(cornerRadius: 10))
-                .padding(2)
-        }
-        .buttonStyle(.plain)
+        .pickerStyle(.segmented)
+        .onChange(of: isRegistering) { _, _ in errorMessage = nil }
+        .padding(.bottom, AcoSpacing.lg)
     }
 
     // MARK: - Rol
 
     private var rolePicker: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("¿QUIÉN ERES?")
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.8)
-                .foregroundStyle(Color.acoInk3)
+            AcoTypography.fieldLabel("¿Quién eres?")
 
             HStack(spacing: 8) {
                 ForEach(AppRole.allCases, id: \.self) { role in
@@ -236,24 +207,24 @@ struct LoginView: View {
                                 .foregroundStyle(selectedRole == role ? role.tint : Color.acoInk3)
                                 .accessibilityHidden(true)
                             Text(role.title)
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(selectedRole == role ? role.tint : Color.acoInk2)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(selectedRole == role ? role.soft : Color.white)
-                        .clipShape(.rect(cornerRadius: 12))
+                        .background(selectedRole == role ? role.soft : Color(.secondarySystemGroupedBackground))
+                        .clipShape(.rect(cornerRadius: AcoRadius.md, style: .continuous))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
                                 .strokeBorder(
-                                    selectedRole == role ? role.tint : Color(acoHex: "3C3228").opacity(0.08),
-                                    lineWidth: selectedRole == role ? 2 : 1
+                                    selectedRole == role ? role.tint : Color.acoHair,
+                                    lineWidth: selectedRole == role ? 2 : 0.5
                                 )
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AcoPressStyle())
                     .accessibilityLabel(role.title)
                     .accessibilityAddTraits(selectedRole == role ? .isSelected : [])
                 }
@@ -269,10 +240,7 @@ struct LoginView: View {
         switch selectedRole {
         case .student:
             VStack(alignment: .leading, spacing: 10) {
-                Text("UNIVERSIDAD")
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(Color.acoInk3)
+                AcoTypography.fieldLabel("Universidad")
 
                 Menu {
                     ForEach(universities) { uni in
@@ -288,22 +256,17 @@ struct LoginView: View {
                             .font(.caption)
                             .foregroundStyle(Color.acoInk3)
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, AcoSpacing.md)
                     .padding(.vertical, 14)
-                    .background(Color.white)
-                    .clipShape(.rect(cornerRadius: 14))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color(acoHex: "3C3228").opacity(0.10), lineWidth: 1.5)
-                    }
+                    .acoGroupedSurface()
                 }
             }
             .padding(.bottom, 20)
 
-            labeledField("CARRERA (OPCIONAL)", placeholder: "Ej. Medicina", text: $career, field: .career)
+            labeledField("Carrera (opcional)", placeholder: "Ej. Medicina", text: $career, field: .career)
 
         case .family:
-            labeledField("NOMBRE DE TU FAMILIA (OPCIONAL)", placeholder: "Ej. Familia Pérez", text: $familyName, field: .familyName)
+            labeledField("Nombre de tu familia (opcional)", placeholder: "Ej. Familia Pérez", text: $familyName, field: .familyName)
 
         case .elderly:
             Text("Después de crear tu cuenta podrás unirte a tu familia con el código que te compartan.")
@@ -322,30 +285,21 @@ struct LoginView: View {
         field: Field,
         keyboard: UIKeyboardType = .default
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.8)
-                .foregroundStyle(Color.acoInk3)
-
+        AcoFormField(label: label) {
             TextField(placeholder, text: text)
                 .font(.body)
                 .foregroundStyle(Color.acoInk)
                 .textInputAutocapitalization(field == .email ? .never : .words)
                 .keyboardType(keyboard)
                 .autocorrectionDisabled()
-                .padding(.horizontal, 16)
+                .padding(.horizontal, AcoSpacing.md)
                 .padding(.vertical, 14)
-                .background(Color.white)
-                .clipShape(.rect(cornerRadius: 14))
+                .acoGroupedSurface()
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(
-                            focusedField == field
-                                ? Color.acoFamily.opacity(0.6)
-                                : Color(acoHex: "3C3228").opacity(0.10),
-                            lineWidth: 1.5
-                        )
+                    if focusedField == field {
+                        RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
+                            .strokeBorder(Color.acoFamily, lineWidth: 2)
+                    }
                 }
                 .focused($focusedField, equals: field)
         }
@@ -353,27 +307,18 @@ struct LoginView: View {
     }
 
     private var passwordField: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("CONTRASEÑA")
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.8)
-                .foregroundStyle(Color.acoInk3)
-
+        AcoFormField(label: "Contraseña") {
             SecureField("••••••••", text: $password)
                 .font(.body)
                 .foregroundStyle(Color.acoInk)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, AcoSpacing.md)
                 .padding(.vertical, 14)
-                .background(Color.white)
-                .clipShape(.rect(cornerRadius: 14))
+                .acoGroupedSurface()
                 .overlay {
-                    RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(
-                            focusedField == .password
-                                ? Color.acoFamily.opacity(0.6)
-                                : Color(acoHex: "3C3228").opacity(0.10),
-                            lineWidth: 1.5
-                        )
+                    if focusedField == .password {
+                        RoundedRectangle(cornerRadius: AcoRadius.md, style: .continuous)
+                            .strokeBorder(Color.acoFamily, lineWidth: 2)
+                    }
                 }
                 .focused($focusedField, equals: .password)
                 .submitLabel(.go)
@@ -411,18 +356,14 @@ struct LoginView: View {
             .padding(.vertical, 17)
             .background {
                 if canSubmit {
-                    if isRegistering {
-                        selectedRole.tint
-                    } else {
-                        brandGradient
-                    }
+                    isRegistering ? selectedRole.tint : Color.acoFamily
                 } else {
-                    Color.acoInk.opacity(0.18)
+                    Color.acoInk3.opacity(0.35)
                 }
             }
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(color: canSubmit ? Color.acoFamily.opacity(0.3) : .clear, radius: 10, y: 5)
+            .clipShape(.rect(cornerRadius: AcoRadius.md, style: .continuous))
         }
+        .buttonStyle(AcoPressStyle())
         .disabled(!canSubmit)
         .animation(.easeOut(duration: 0.2), value: canSubmit)
         .padding(.bottom, 24)

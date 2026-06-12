@@ -313,16 +313,14 @@ private struct MapBottomSheet: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Sort label
-            HStack(spacing: 5) {
-                Image(systemName: "sparkles").font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.acoStudent)
-                Text("Ordenado por distancia y afinidad contigo")
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(Color.acoInk3)
-            }
-            .padding(.horizontal, 18).padding(.top, 10).padding(.bottom, 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Ordenado por distancia y afinidad")
+                .font(.footnote)
+                .foregroundStyle(Color.acoInk3)
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
 
             // List
             ScrollView {
@@ -483,15 +481,13 @@ private struct SelectedRequestCallout: View {
 
             Spacer()
 
-            // Hours badge
-            VStack(spacing: 0) {
-                Text("+\(hoursFormatted(request.hours))")
-                    .font(.system(size: 20, weight: .black)).foregroundStyle(Color.acoStudent)
-                Text("horas").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.acoInk3)
-            }
-            .padding(.horizontal, 10).padding(.vertical, 8)
-            .background(Color.acoStudentSoft)
-            .clipShape(.rect(cornerRadius: 12))
+            Text("+\(hoursFormatted(request.hours)) h")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.acoStudent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.acoStudentSoft)
+                .clipShape(Capsule())
         }
         .padding(14)
         .background(.thinMaterial, in: .rect(cornerRadius: 18))
@@ -560,17 +556,14 @@ private struct RankedRow: View {
             VStack(alignment: .trailing, spacing: 5) {
                 Text("+\(hoursFormatted(request.hours)) h")
                     .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoStudent)
-                HStack(spacing: 3) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(Color.acoStudent)
-                        .accessibilityHidden(true)
-                    Text("\(request.matchScore)%")
-                        .font(.system(size: 10, weight: .bold)).foregroundStyle(Color.acoStudent)
-                }
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .background(Color.acoStudentSoft)
-                .clipShape(.rect(cornerRadius: 6))
+                Text("\(request.matchScore)% afinidad")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color.acoStudent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.acoStudentSoft)
+                    .clipShape(Capsule())
+                    .accessibilityLabel("\(request.matchScore) por ciento de afinidad")
             }
         }
         .padding(.horizontal, 13).padding(.vertical, 11)

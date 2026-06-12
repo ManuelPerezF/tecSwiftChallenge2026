@@ -41,9 +41,17 @@ struct ElderlyRootView: View {
     }
 
     private var logoutButton: some View {
-        Button("Cerrar sesión", action: onLogout)
-            .font(.caption)
-            .foregroundStyle(Color.acoInk3)
+        Menu {
+            Button("Cerrar sesión", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                onLogout()
+            }
+        } label: {
+            Image(systemName: "person.circle")
+                .symbolRenderingMode(.hierarchical)
+                .font(.title3)
+                .foregroundStyle(Color.acoInk2)
+        }
+        .accessibilityLabel("Cuenta")
     }
 }
 

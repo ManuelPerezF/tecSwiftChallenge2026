@@ -44,10 +44,11 @@ struct ElderlyAgendaView: View {
 
     private var notLinkedState: some View {
         VStack(spacing: 28) {
-            ZStack {
-                Circle().fill(Color.acoElderlySoft).frame(width: 120, height: 120)
-                Text("🔗").font(.system(size: 54)).accessibilityHidden(true)
-            }
+            Image(systemName: "link.circle")
+                .font(.system(size: 56))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.acoElderly)
+                .accessibilityHidden(true)
             Text("Aún no estás vinculado")
                 .font(.title).bold().foregroundStyle(Color.acoInk)
             Text("Ve a la pestaña **Mi familia** e ingresa el código que te compartió tu familiar.")
@@ -122,10 +123,7 @@ struct ElderlyAgendaView: View {
                 }
 
                 if !pendingRating.isEmpty {
-                    Text("CALIFICAR VISITA")
-                        .font(.system(size: 13, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(Color.acoInk3)
+                    AcoTypography.sectionHeader("Calificar visita")
                         .padding(.top, 6)
 
                     ForEach(pendingRating) { visit in
@@ -256,10 +254,11 @@ struct ElderlyAgendaView: View {
 
     private var emptyState: some View {
         VStack(spacing: 24) {
-            ZStack {
-                Circle().fill(Color.acoElderlySoft).frame(width: 120, height: 120)
-                Text("🗓️").font(.system(size: 54)).accessibilityHidden(true)
-            }
+            Image(systemName: "calendar")
+                .font(.system(size: 52))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.acoElderly)
+                .accessibilityHidden(true)
             Text("Sin visitas programadas")
                 .font(.title).bold().foregroundStyle(Color.acoInk)
             Text("Cuando tu familia agende una visita\naparecerá aquí.")

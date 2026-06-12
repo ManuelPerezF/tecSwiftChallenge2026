@@ -7,6 +7,10 @@ struct AvatarView: View {
     var size: CGFloat = 44
     var ring: Bool = false
 
+    @ScaledMetric(relativeTo: .body) private var scaledSize: CGFloat = 44
+
+    private var displaySize: CGFloat { max(size, scaledSize) }
+
     private var initials: String {
         name.split(separator: " ")
             .prefix(2)
@@ -18,10 +22,10 @@ struct AvatarView: View {
         ZStack {
             Circle().fill(tint)
             Text(initials)
-                .font(.system(size: size * 0.38, weight: .semibold))
+                .font(.system(size: displaySize * 0.38, weight: .semibold))
                 .foregroundStyle(.white)
         }
-        .frame(width: size, height: size)
+        .frame(width: displaySize, height: displaySize)
         .overlay {
             if ring {
                 Circle()
@@ -75,14 +79,16 @@ struct ChipButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 13.5, weight: .semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(isActive ? .white : tint)
-                .padding(.horizontal, 13)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
                 .background(isActive ? tint : soft)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
 
@@ -93,14 +99,12 @@ struct BadgeLabel: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
-            .textCase(.uppercase)
-            .tracking(0.3)
+            .font(.caption.weight(.semibold))
             .foregroundStyle(color)
             .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.11))
-            .clipShape(.rect(cornerRadius: 6))
+            .padding(.vertical, 4)
+            .background(color.opacity(0.1))
+            .clipShape(Capsule())
     }
 }
 
@@ -110,18 +114,18 @@ struct StarRating: View {
     var size: CGFloat = 15
 
     var body: some View {
-        HStack(spacing: 1.5) {
+        HStack(spacing: 2) {
             ForEach(1 ... 5, id: \.self) { i in
-                Text("★")
+                Image(systemName: i <= Int(value.rounded()) ? "star.fill" : "star")
                     .font(.system(size: size))
-                    .foregroundStyle(i <= Int(value.rounded()) ? Color.acoStar : Color(acoHex: "E2D8CC"))
+                    .foregroundStyle(i <= Int(value.rounded()) ? Color.acoStar : Color.acoInk3.opacity(0.35))
             }
         }
+        .accessibilityLabel("\(Int(value.rounded())) de 5 estrellas")
     }
 }
 
 // MARK: - AcoCard
-// Radius reducido 20→14, superficie levemente más cálida, sombra más sutil
 struct AcoCard<Content: View>: View {
     var padding: CGFloat = 16
     @ViewBuilder let content: () -> Content
@@ -129,14 +133,64 @@ struct AcoCard<Content: View>: View {
     var body: some View {
         content()
             .padding(padding)
-            .background(Color(acoHex: "FDFBF8"))
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(color: Color(acoHex: "2A1F14").opacity(0.07), radius: 8, x: 0, y: 3)
-            .shadow(color: Color(acoHex: "2A1F14").opacity(0.03), radius: 1, x: 0, y: 1)
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Color(acoHex: "3C3228").opacity(0.055), lineWidth: 1)
+            .acoGroupedSurface()
+    }
+}
+
+// MARK: - AcoFormField
+
+struct AcoFormField<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AcoSpacing.xs) {
+            AcoTypography.fieldLabel(label)
+            content()
+        }
+    }
+}
+
+/// Campos apilados con divisores, estilo formulario iOS.
+struct AcoGroupedFields<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .padding(.horizontal, AcoSpacing.md)
+        .acoGroupedSurface()
+    }
+}
+
+// MARK: - AcoEmptyState
+
+struct AcoEmptyState: View {
+    let symbol: String
+    let title: String
+    let message: String
+    var tint: Color = .acoFamily
+    var actionLabel: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(title, systemImage: symbol)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(tint)
+        } description: {
+            Text(message)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Color.acoInk2)
+        } actions: {
+            if let actionLabel, let action {
+                Button(actionLabel, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .tint(tint)
             }
+        }
+        .padding(.horizontal, AcoSpacing.lg)
     }
 }
 
@@ -150,23 +204,26 @@ struct CTAButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            guard !disabled else { return }
+            KuidarHaptic.light()
+            action()
+        } label: {
             HStack(spacing: 9) {
                 if let s = leadingSymbol {
-                    Image(systemName: s).font(.system(size: big ? 20 : 17))
+                    Image(systemName: s).font(.body.weight(.semibold))
                 }
                 Text(label)
-                    .font(.system(size: big ? 20 : 17, weight: .semibold))
+                    .font(big ? .title3.weight(.semibold) : .body.weight(.semibold))
             }
             .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, big ? 18 : 16)
-            .background(disabled ? Color(acoHex: "D8CFC4") : tint)
-            .clipShape(.rect(cornerRadius: big ? 20 : 15))
-            .shadow(color: disabled ? .clear : tint.opacity(0.32), radius: 10, x: 0, y: 5)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(disabled ? Color.acoInk3.opacity(0.35) : tint)
+            .clipShape(.rect(cornerRadius: AcoRadius.md, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AcoPressStyle())
         .disabled(disabled)
+        .accessibilityHint(disabled ? "Completa los campos requeridos" : "")
     }
 }
 
@@ -175,13 +232,7 @@ struct SectionLabel: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 11, weight: .bold))
-            .textCase(.uppercase)
-            .tracking(0.7)
-            .foregroundStyle(Color.acoInk3)
-            .padding(.bottom, 10)
-            .padding(.horizontal, 2)
+        AcoTypography.sectionHeader(text)
     }
 }
 
@@ -266,13 +317,7 @@ struct AcoMapMarker: View {
             VStack(spacing: 0) {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.white, Color(acoHex: "FAF7F2")],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
+                        .fill(Color(.systemBackground))
                         .frame(width: size, height: size)
                     Circle()
                         .strokeBorder(color, lineWidth: isSelected ? 3 : 2)

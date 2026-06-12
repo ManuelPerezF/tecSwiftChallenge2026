@@ -21,14 +21,14 @@ struct StudentDetailView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.acoBg.ignoresSafeArea()
+        Group {
             if isClaimed {
                 claimedConfirmation
             } else {
                 detailContent
             }
         }
+        .acoScreenBackground()
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -75,99 +75,82 @@ struct StudentDetailView: View {
     private var detailContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Hero — actividad + badges, sin card wrapper
-                VStack(spacing: 12) {
-                    Image(systemName: request.activityType.symbolName)
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.acoStudent)
-                        .accessibilityHidden(true)
-                    HStack(spacing: 7) {
-                        BadgeLabel(text: request.activityType.label, color: .acoStudent)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Label(request.activityType.label, systemImage: request.activityType.symbolName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.acoStudent)
                         if request.isUrgent { BadgeLabel(text: "Urgente", color: .acoUrgent) }
                     }
                     Text(request.title)
-                        .font(.title3).fontWeight(.bold).foregroundStyle(Color.acoInk)
-                        .multilineTextAlignment(.center)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.acoInk)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-                .padding(.bottom, 20)
+                .padding(.bottom, 16)
+                .accessibilityElement(children: .combine)
 
-                // Descripción
                 AcoCard {
-                    Text("\u{201C}\(request.description)\u{201D}")
-                        .font(.body).foregroundStyle(Color.acoInk).lineSpacing(3)
-                }
-                .padding(.bottom, 10)
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(request.description)
+                            .font(.body)
+                            .foregroundStyle(Color.acoInk)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                // Privacy card del adulto mayor
-                AcoCard(padding: 13) {
-                    HStack(spacing: 12) {
-                        AvatarView(name: request.elderlyName, tint: .acoElderly, size: 40)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(request.elderlyName)
-                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.acoInk)
-                            Label(request.neighborhood, systemImage: "mappin.circle.fill")
-                                .font(.caption).foregroundStyle(Color.acoInk2)
+                        Divider()
+
+                        HStack(spacing: 12) {
+                            AvatarView(name: request.elderlyName, tint: .acoElderly, size: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(request.elderlyName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.acoInk)
+                                Label(request.neighborhood, systemImage: "mappin.circle")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.acoInk2)
+                            }
                         }
-                        Spacer(minLength: 0)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(request.elderlyName), \(request.neighborhood)")
                     }
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 12)
 
-                // Datos clave — 3 celdas inline sin card individual
-                HStack(spacing: 8) {
-                    factCell(symbol: "clock", value: request.scheduledDateFormatted, label: "horario")
-                    factCell(symbol: "timer", value: request.duration, label: "duración")
-                    factCell(symbol: "star.fill", value: "+\(hoursFormatted(request.hours)) h", label: "servicio")
-                }
-                .padding(.bottom, 14)
+                factsRow
+                    .padding(.bottom, 16)
 
-                // Sugerencia IA — tip de preparación on-device
                 if isLoadingTip || aiTip != nil {
-                    HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: "sparkles")
-                            .font(.body)
-                            .foregroundStyle(Color(acoHex: "13684D"))
-                            .accessibilityHidden(true)
+                    Group {
                         if isLoadingTip {
-                            Text("Preparando consejo…")
+                            Label("Preparando consejo…", systemImage: "text.bubble")
                                 .font(.subheadline)
-                                .foregroundStyle(Color(acoHex: "13684D").opacity(0.55))
+                                .foregroundStyle(Color.acoInk2)
                                 .redacted(reason: .placeholder)
                         } else if let tip = aiTip {
-                            Text(tip)
+                            Label(tip, systemImage: "text.bubble")
                                 .font(.subheadline)
-                                .foregroundStyle(Color(acoHex: "13684D"))
+                                .foregroundStyle(Color.acoInk2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    .padding(13)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.acoStudentSoft)
-                    .clipShape(.rect(cornerRadius: 12))
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 16)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(aiTip.map { "Consejo: \($0)" } ?? "Cargando consejo")
                 }
 
-                // Selector de hora
-                Text("Propón tu hora de llegada")
-                    .font(.caption).fontWeight(.bold).textCase(.uppercase)
-                    .tracking(0.3).foregroundStyle(Color.acoStudent).padding(.bottom, 10)
+                AcoTypography.sectionHeader("Propón tu hora de llegada")
 
                 DatePicker("Hora de llegada", selection: $arrivalTime, displayedComponents: .hourAndMinute)
                     .datePickerStyle(.compact)
                     .tint(.acoStudent)
                     .labelsHidden()
-                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(acoHex: "FDFAF6"))
-                    .clipShape(.rect(cornerRadius: 14))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(Color.acoStudent.opacity(0.25), lineWidth: 1.5)
-                    }
-                    .padding(.bottom, 22)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(.rect(cornerRadius: 12, style: .continuous))
+                    .padding(.bottom, 20)
 
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -192,18 +175,38 @@ struct StudentDetailView: View {
         .scrollIndicators(.hidden)
     }
 
-    private func factCell(symbol: String, value: String, label: String) -> some View {
-        AcoCard(padding: 12) {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.title3)
-                    .foregroundStyle(Color.acoStudent)
-                    .accessibilityHidden(true)
-                Text(value).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.acoInk)
-                Text(label).font(.caption2).foregroundStyle(Color.acoInk3)
-            }
-            .frame(maxWidth: .infinity)
+    private var factsRow: some View {
+        HStack(spacing: 0) {
+            factCell(symbol: "clock", value: request.scheduledDateFormatted, label: "Horario")
+            Divider().frame(height: 36)
+            factCell(symbol: "timer", value: request.duration, label: "Duración")
+            Divider().frame(height: 36)
+            factCell(symbol: "clock.badge.checkmark", value: "+\(hoursFormatted(request.hours)) h", label: "Servicio")
         }
+        .padding(.vertical, 12)
+        .background(Color(.secondarySystemBackground))
+        .clipShape(.rect(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func factCell(symbol: String, value: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.body)
+                .foregroundStyle(Color.acoStudent)
+                .accessibilityHidden(true)
+            Text(value)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.acoInk)
+                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(Color.acoInk3)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 
     private func apply() async {

@@ -141,7 +141,7 @@ struct ElderlyFamilyView: View {
 
     private var howItWorks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("CÓMO FUNCIONA")
+            sectionLabel("Cómo funciona")
 
             instructionRow(number: "1", text: "Tu familia publica solicitudes desde su app.")
             instructionRow(number: "2", text: "Las verás en la pestaña **Mis visitas**.")
@@ -151,7 +151,7 @@ struct ElderlyFamilyView: View {
 
     private var profileSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("TU PERFIL")
+            sectionLabel("Tu perfil")
 
             if let profile = myProfile {
                 profileCard(profile)
@@ -219,10 +219,7 @@ struct ElderlyFamilyView: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .tracking(0.8)
-            .foregroundStyle(Color.acoInk3)
+        AcoTypography.sectionHeader(text)
     }
 
     private func handleJoined() {

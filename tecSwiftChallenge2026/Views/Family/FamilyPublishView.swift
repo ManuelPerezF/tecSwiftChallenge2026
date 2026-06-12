@@ -165,9 +165,9 @@ struct FamilyPublishView: View {
                             if isSuggestingDescription {
                                 ProgressView().scaleEffect(0.75).tint(Color.acoFamily)
                             } else {
-                                Image(systemName: "sparkles").font(.subheadline)
+                                Image(systemName: "text.badge.plus").font(.subheadline)
                             }
-                            Text(isSuggestingDescription ? "Generando…" : "Sugerir descripción con IA")
+                            Text(isSuggestingDescription ? "Generando…" : "Sugerir descripción")
                                 .font(.subheadline).fontWeight(.medium)
                         }
                         .foregroundStyle(Color.acoFamily)
@@ -289,10 +289,8 @@ struct FamilyPublishView: View {
     }
 
     private func fieldLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.caption).bold().textCase(.uppercase)
-            .tracking(0.4).foregroundStyle(Color.acoFamily)
-            .padding(.bottom, 10)
+        AcoTypography.sectionHeader(text)
+            .foregroundStyle(Color.acoFamily)
     }
 }
 

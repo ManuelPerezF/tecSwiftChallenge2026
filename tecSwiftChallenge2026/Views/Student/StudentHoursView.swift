@@ -32,9 +32,7 @@ struct StudentHoursView: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.acoBg.ignoresSafeArea()
-
+        Group {
             if isLoading && assignments.isEmpty {
                 ProgressView("Cargando…").tint(Color.acoStudent)
             } else {
@@ -55,6 +53,7 @@ struct StudentHoursView: View {
                 .scrollIndicators(.hidden)
             }
         }
+        .acoScreenBackground()
         .navigationTitle("Mis horas")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -81,64 +80,54 @@ struct StudentHoursView: View {
     // MARK: - Hero
 
     private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(hoursFormatted(totalHours))
-                    .font(.system(size: 76, weight: .heavy))
-                    .foregroundStyle(Color.acoStudent)
-                    .tracking(-2)
-                Text("h")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(Color.acoStudent.opacity(0.55))
-                Spacer()
+        VStack(alignment: .leading, spacing: AcoSpacing.md) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(hoursFormatted(totalHours)) horas")
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(Color.acoInk)
+                    .monospacedDigit()
+                Text("Servicio social registrado")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.acoInk2)
             }
 
             if goalHours > 0 {
-                Text("de \(goalHours) h · tu meta")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.acoInk2)
-                    .padding(.top, 2)
-
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color(acoHex: "E7DECF"))
-                        Capsule()
-                            .fill(Color.acoStudent)
-                            .frame(width: geo.size.width * progress)
-                            .animation(.easeOut(duration: 0.6), value: progress)
+                VStack(alignment: .leading, spacing: AcoSpacing.xs) {
+                    HStack {
+                        Text("Meta: \(goalHours) h")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Color.acoInk2)
+                        Spacer()
+                        Text("\(max(0, goalHours - Int(totalHours))) h restantes")
+                            .font(.footnote)
+                            .foregroundStyle(Color.acoInk3)
+                            .monospacedDigit()
                     }
-                    .frame(height: 6)
+                    ProgressView(value: progress)
+                        .tint(.acoStudent)
+                        .animation(.easeOut(duration: 0.25), value: progress)
                 }
-                .frame(height: 6)
-                .padding(.top, 16)
-
-                HStack {
-                    Text("\(Int(progress * 100))% completado")
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.acoStudent)
-                    Spacer()
-                    Text("\(max(0, goalHours - Int(totalHours))) h restantes")
-                        .font(.caption).foregroundStyle(Color.acoInk3)
-                }
-                .padding(.top, 8)
+                .padding(AcoSpacing.md)
+                .acoGroupedSurface()
             } else {
                 Button {
                     showGoalSheet = true
                 } label: {
                     Label("Establece tu meta de horas", systemImage: "target")
-                        .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(Color.acoStudent)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
+                .buttonStyle(.bordered)
+                .tint(.acoStudent)
             }
 
             if !completedAssignments.isEmpty {
-                inlineStat(symbol: "checkmark.circle.fill",
-                           value: "\(completedAssignments.count)",
-                           label: "visitas completadas")
-                    .padding(.top, 20)
+                Label("\(completedAssignments.count) visitas completadas", systemImage: "checkmark.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.acoInk2)
             }
         }
+        .padding(.top, AcoSpacing.sm)
     }
 
     // MARK: - Breakdown
