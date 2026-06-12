@@ -7,6 +7,12 @@ struct FamilyDashboardView: View {
     @State private var assignments: [APIAssignment] = []
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
+    @State private var selectedFilter: RequestStatus? = nil
+
+    private var filteredRequests: [APIRequest] {
+        guard let filter = selectedFilter else { return requests }
+        return requests.filter { $0.statusEnum == filter }
+    }
 
     var body: some View {
         Group {
@@ -18,6 +24,8 @@ struct FamilyDashboardView: View {
                 serverError(err)
             } else if requests.isEmpty {
                 emptyState
+            } else if filteredRequests.isEmpty {
+                filteredEmptyState
             } else {
                 list
             }
@@ -26,6 +34,28 @@ struct FamilyDashboardView: View {
         .navigationTitle("Mis solicitudes")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        selectedFilter = nil
+                    } label: {
+                        Label("Todas", systemImage: selectedFilter == nil ? "checkmark" : "line.3.horizontal.decrease")
+                    }
+                    Divider()
+                    ForEach([RequestStatus.open, .claimed, .inProgress, .completed, .cancelled], id: \.self) { status in
+                        Button {
+                            selectedFilter = status
+                        } label: {
+                            Label(status.label, systemImage: selectedFilter == status ? "checkmark" : "")
+                        }
+                    }
+                } label: {
+                    Image(systemName: selectedFilter == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.acoFamily)
+                }
+                .accessibilityLabel(selectedFilter == nil ? "Filtrar solicitudes" : "Filtro activo: \(selectedFilter!.label)")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onAddTapped) {
                     Image(systemName: "plus.circle.fill")
@@ -61,9 +91,20 @@ struct FamilyDashboardView: View {
 
     // MARK: - Subviews
 
+    private var filteredEmptyState: some View {
+        AcoEmptyState(
+            symbol: "line.3.horizontal.decrease.circle",
+            title: "Sin solicitudes",
+            message: "No hay solicitudes con estado \"\(selectedFilter!.label)\". Prueba otro filtro.",
+            tint: .acoFamily,
+            actionLabel: "Ver todas",
+            action: { selectedFilter = nil }
+        )
+    }
+
     private var list: some View {
         List {
-            ForEach(requests) { req in
+            ForEach(filteredRequests) { req in
                 if let asg = assignment(for: req) {
                     NavigationLink(value: asg) {
                         LiveRequestRow(request: req, assignment: asg)
